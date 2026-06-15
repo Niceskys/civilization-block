@@ -1,0 +1,225 @@
+{
+  "main": {
+    "id": "ba1ccffcdb6bb2c7",
+    "type": "split",
+    "children": [
+      {
+        "id": "f8f2d0560e012b59",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "582d7183ea2f7697",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "文明块/99 - 美术与UI制作指南/99.1 全流程美术制作手册.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "99.1 全流程美术制作手册"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "b733d5fbb95065fa",
+    "type": "split",
+    "children": [
+      {
+        "id": "9f5f89137adafc75",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a110dee89740feb1",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "4aee4b1da47727fd",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "59c7aa0b5e49b55b",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "c1d70bee071bcb21",
+    "type": "split",
+    "children": [
+      {
+        "id": "84508428e09eb577",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "24cafe06c642c60b",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "文明块/01 - 世界底层规则/1.1 地皮基础规则.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "1.1 地皮基础规则 的反向链接列表"
+            }
+          },
+          {
+            "id": "1b3248855c87201f",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "文明块/01 - 世界底层规则/1.1 地皮基础规则.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "1.1 地皮基础规则 的出链列表"
+            }
+          },
+          {
+            "id": "f7730d28d9c7cca3",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "b3ca0274cd8dd411",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属性"
+            }
+          },
+          {
+            "id": "d9b60a9b9f346888",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "文明块/01 - 世界底层规则/1.1 地皮基础规则.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "1.1 地皮基础规则 的大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据库": false
+    }
+  },
+  "active": "582d7183ea2f7697",
+  "lastOpenFiles": [
+    "文明块/99 - 美术与UI制作指南/文明块_完整UI演示 - 副本.html",
+    "文明块/99 - 美术与UI制作指南/文明块_完整UI演示.html",
+    "文明块/01 - 世界底层规则/1.4 胜负与目标规则.md",
+    "文明块/99 - 美术与UI制作指南/99.1 全流程美术制作手册.md",
+    "文明块/99 - 美术与UI制作指南",
+    "文明块/05-UI 与交互设计/5.8 UI交互体验优化规范.md",
+    "文明块/05-UI 与交互设计/5.7 玩家留存与分享系统.md",
+    "文明块/01 - 世界底层规则/1.8 城市视觉规划系统.md",
+    "文明块/02 - 建筑系统/2.4 工具制造系统.md",
+    "文明块/02 - 建筑系统/单个建筑详情/矿脉挖掘点.md",
+    "文明块/06 - 全局数值总表/6.4 数值平衡模拟表.md",
+    "文明块/05-UI 与交互设计/5.6 UI原型设计蓝图.md",
+    "文明块/08 - 长线进阶内容/8.6 世界观与隐藏剧情.md",
+    "文明块/01 - 世界底层规则/1.0 世界生成与生物群系规则.md",
+    "文明块/08 - 长线进阶内容/8.5 传承模式.md",
+    "文明块/08 - 长线进阶内容/8.4 外部世界与贸易路线.md",
+    "文明块/03-NPC 系统/3.8 NPC社交事件系统.md",
+    "文明块/08 - 长线进阶内容/8.3 挑战模式与成就解锁系统.md",
+    "文明块/01 - 世界底层规则/1.7 地下挖掘与探索系统.md",
+    "文明块/05-UI 与交互设计/5.5 装饰与自定义系统.md",
+    "文明块/03-NPC 系统/3.7 NPC好感度系统.md",
+    "文明块/08 - 长线进阶内容/8.2 科技树系统.md",
+    "文明块/01 - 世界底层规则/1.6 随机事件系统.md",
+    "文明块/02 - 建筑系统/单个建筑详情/陷阱.md",
+    "文明块/02 - 建筑系统/单个建筑详情/哨塔.md",
+    "文明块/02 - 建筑系统/单个建筑详情/仓库.md",
+    "文明块/02 - 建筑系统/单个建筑详情/工坊.md",
+    "文明块/02 - 建筑系统/单个建筑详情/城墙.md",
+    "文明块/10-任务系统",
+    "文明块/新建文件夹",
+    "文明块/09-商店系统",
+    "文明块/08 - 长线进阶内容",
+    "文明块/---",
+    "文明块/07 - 边界与异常规则",
+    "文明块/06 - 全局数值总表",
+    "文明块/05-UI 与交互设计"
+  ]
+}
