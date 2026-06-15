@@ -18,10 +18,12 @@ master = [
     # === Non-Active: Merged ===
     # (none currently)
     
+    # === Non-Active: Completed Back-Write ===
+    ("C008", "初始NPC入住规则", "已完成回写", "实现阻断", "无", False, False, "P0-RW-005", "已写入3.1/房屋/5.3，提交f912821+ba69a96"),
+    
     # === Active: P0 - Implementation Blocking ===
     ("C003", "同种建筑效率惩罚", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-002", "2.1维持40%，裁决要求移除"),
     ("C007", "第一夜怪物规则", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-004", "7.2允许第一夜有怪，B级要求无怪"),
-    ("C008", "初始NPC入住规则", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-005", "3.1未定义自动入住"),
     ("C010", "前3座建筑免费重新放置", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-006", "2.1仅75%返还，B级要求免费重放"),
     
     # === Active: P1 - Early Experience ===
@@ -128,4 +130,4 @@ print(f"{'='*20}")
 # Also check the specific equations from the task spec
 print(f"\nEquation check: {len(p0)}+{len(p1)}+{len(p2)}+{len(p3)}+{len(dg)}={eq1}")
 print(f"Active({len(active)}) + NonActive({len(non_active)}) = {len(active)+len(non_active)}")
-print(f"Expected: P0=4 P1=14 P2=8 P3=9 DG=2 Active=37 NonActive=7 Total=44")
+print(f"Expected: P0=3 P1=14 P2=8 P3=9 DG=2 Active=36 NonActive=8 Total=44")
