@@ -20,11 +20,12 @@ master = [
     
     # === Non-Active: Completed Back-Write ===
     ("C008", "初始NPC入住规则", "已完成回写", "实现阻断", "无", False, False, "P0-RW-005", "已写入3.1/房屋/5.3，提交f912821+ba69a96"),
+    ("C010", "前3座建筑免费重新放置", "已完成回写", "实现阻断", "无", False, False, "P0-RW-006", "已写入2.1/5.2/7.1，提交35dc50f"),
+    ("C021", "拆除规则不一致", "已完成回写", "文档治理", "无", False, False, "P0-RW-006", "已写入2.1/5.2/7.1，提交35dc50f"),
     
     # === Active: P0 - Implementation Blocking ===
     ("C003", "同种建筑效率惩罚", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-002", "2.1维持40%，裁决要求移除"),
     ("C007", "第一夜怪物规则", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-004", "7.2允许第一夜有怪，B级要求无怪"),
-    ("C010", "前3座建筑免费重新放置", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-006", "2.1仅75%返还，B级要求免费重放"),
     
     # === Active: P1 - Early Experience ===
     ("C009", "首次工作分配显示详细程度", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-001", "3.3显示7维，B级要求前2项"),
@@ -54,7 +55,6 @@ master = [
     
     # === Active: P3 - Document Governance ===
     ("C018", "引用文件名或章节不存在", "待核查", "文档治理", "P3", True, False, "P3-RW-001", "全库需核查引用有效性"),
-    ("C021", "拆除规则不一致", "已裁决待回写", "文档治理", "P3", True, False, "P0-RW-006", "2.1与C010耦合"),
     ("C028", "全体NPC死亡后失败条件", "待核查", "文档治理", "P3", True, False, "P3-RW-001", "1.4引用7.1"),
     ("C029", "NPC工作分配规则存放位置", "已裁决待回写", "文档治理", "P3", True, False, "P3-RW-006", "B级修正归属"),
     ("C034", "商品价格在商店和商人一致性", "待核查", "文档治理", "P3", True, False, "P2-RW-008", "9.2 vs 1.6"),
@@ -130,4 +130,4 @@ print(f"{'='*20}")
 # Also check the specific equations from the task spec
 print(f"\nEquation check: {len(p0)}+{len(p1)}+{len(p2)}+{len(p3)}+{len(dg)}={eq1}")
 print(f"Active({len(active)}) + NonActive({len(non_active)}) = {len(active)+len(non_active)}")
-print(f"Expected: P0=3 P1=14 P2=8 P3=9 DG=2 Active=36 NonActive=8 Total=44")
+print(f"Expected: P0=2 P1=14 P2=8 P3=8 DG=2 Active=34 NonActive=10 Total=44")
