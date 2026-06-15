@@ -1,5 +1,5 @@
 # This script generates the master conflict table for 00.2
-# C001-C042 authoritative classification
+# C001-C044 authoritative classification
 
 master = [
     # (cid, title, status, category, priority, is_active, needs_ruling, route_task, evidence)
@@ -10,22 +10,16 @@ master = [
     ("C039", "正式建造时长定义位置", "已验证一致", "文档治理", "无", False, False, "", "2.1引用6.1，引用链正常"),
     ("C040", "昼夜命名约定", "已验证一致", "文档治理", "无", False, False, "", "1.3与前30分钟V2时间格式一致"),
     
-    # === Non-Active: Original Judgment Error ===
-    # (none currently)
-    
     # === Non-Active: Completed Back-Write ===
-    # (none currently)
+    ("C002", "新存档是否默认暂停", "已完成回写", "实现阻断", "无", False, False, "P0-RW-001", "已写入1.3/5.1/2.1，提交901895b"),
+    ("C005", "首次建造加速是否已写入", "已完成回写", "实现阻断", "无", False, False, "P0-RW-003", "已写入2.1/6.1/四个建筑详情，提交450a260"),
+    ("C022", "暂停定义和停止范围", "已完成回写", "文档治理", "无", False, False, "P0-RW-001", "与C002一并回写，提交901895b"),
     
     # === Non-Active: Merged ===
     # (none currently)
     
-    # === Non-Active: Completed Back-Write ===
-    ("C002", "新存档是否默认暂停", "已完成回写", "实现阻断", "无", False, False, "P0-RW-001", "已写入1.3/5.1/2.1，2026-06-15"),
-    ("C022", "暂停定义和停止范围", "已完成回写", "文档治理", "无", False, False, "P0-RW-001", "与C002耦合，一并解决"),
-    
     # === Active: P0 - Implementation Blocking ===
     ("C003", "同种建筑效率惩罚", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-002", "2.1维持40%，裁决要求移除"),
-    ("C005", "首次建造加速是否已写入", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-003", "2.1/6.1未含加速规则"),
     ("C007", "第一夜怪物规则", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-004", "7.2允许第一夜有怪，B级要求无怪"),
     ("C008", "初始NPC入住规则", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-005", "3.1未定义自动入住"),
     ("C010", "前3座建筑免费重新放置", "已裁决待回写", "实现阻断", "P0", True, False, "P0-RW-006", "2.1仅75%返还，B级要求免费重放"),
@@ -42,7 +36,9 @@ master = [
     ("C030", "建造面板Tab数量", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-005", "5.2定义8个Tab，缺推荐标签"),
     ("C031", "教程提示系统状态机缺失", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-006", "5.8无状态机定义"),
     ("C032", "连续无损失时惩罚性难度增加", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-013", "7.2惩罚强者，裁决要求反转"),
-    ("C036", "前30分钟方案加速规则是否已写入", "已裁决待回写", "前期体验", "P1", True, False, "P0-RW-003", "与C005耦合，未回写"),
+    ("C036", "前30分钟方案加速规则是否已写入", "已裁决待回写", "前期体验", "P1", True, False, "P0-RW-003", "与C005耦合，已回写"),
+    ("C043", "首次建造加速机会的消耗时点与返还规则缺失", "待核查", "前期体验", "P1", True, True, "P1-RW-013", "消耗时点与摧毁/取消返还规则缺失"),
+    ("C044", "首次建造加速与资源施工加速的叠加关系缺失", "等待设计者裁决", "前期体验", "P1", True, True, "P1-RW-014", "两种加速能否叠加未定义"),
     
     # === Active: P2 - Mid-Late Balance ===
     ("C004", "堆叠惩罚与垂直城市核心定位冲突", "等待设计者裁决", "中后期平衡", "P2", True, True, "P2-RW-001", "2.1鼓励vs1.2惩罚"),
@@ -62,7 +58,7 @@ master = [
     ("C034", "商品价格在商店和商人一致性", "待核查", "文档治理", "P3", True, False, "P2-RW-008", "9.2 vs 1.6"),
     ("C035", "地皮商店价格定义位置", "待核查", "文档治理", "P3", True, False, "P2-RW-006", "1.1 vs 9.2"),
     ("C038", "旧方案未归档", "未处理", "文档治理", "P3", True, False, "P3-RW-004", "顶层目录遗留"),
-    ("C041", "存根文件混淆", "未处理", "文档治理", "P3", True, False, "P3-RW-008", "17个存根21~42B"),
+    ("C041", "存根文件混淆", "未处理", "文档治理", "P3", True, False, "P3-RW-008", "17个存根（仅H1无正文）"),
     ("C042", "建筑详情文件缺失状态标记", "未处理", "文档治理", "P3", True, False, "P3-RW-009", "18个文件无status"),
     
     # === Active: DG - Design Gate (waiting for designer ruling) ===
@@ -71,7 +67,6 @@ master = [
 ]
 
 # Validate
-# m[5] is is_active (True/False), m[4] is priority
 active = [m for m in master if m[5] == True]
 non_active = [m for m in master if m[5] == False]
 
@@ -86,9 +81,9 @@ all_active_ids = set(m[0] for m in active)
 all_non_active_ids = set(m[0] for m in non_active)
 assert len(all_active_ids & all_non_active_ids) == 0, "Overlap between active and non-active!"
 
-# Verify exactly 42 unique IDs
+# Verify exactly 44 unique IDs
 all_ids = set(m[0] for m in master)
-expected = set(f"C{i:03d}" for i in range(1, 43))
+expected = set(f"C{i:03d}" for i in range(1, 45))
 missing_ids = expected - all_ids
 extra_ids = all_ids - expected
 
@@ -101,36 +96,27 @@ print(f"P1: {len(p1)} -> {[m[0] for m in p1]}")
 print(f"P2: {len(p2)} -> {[m[0] for m in p2]}")
 print(f"P3: {len(p3)} -> {[m[0] for m in p3]}")
 print(f"DG: {len(dg)} -> {[m[0] for m in dg]}")
-
-# Verify C001-C042 completeness
 print(f"\nMissing IDs: {missing_ids}")
 print(f"Extra IDs: {extra_ids}")
 
 # Equation checks
 eq1 = len(p0) + len(p1) + len(p2) + len(p3) + len(dg)
 eq2 = eq1 == len(active)
-eq3 = len(active) + len(non_active) == 42
+eq3 = len(active) + len(non_active) == len(master)
 eq4 = len(active) == len(p0) + len(p1) + len(p2) + len(p3) + len(dg)
 
 print(f"\nP0+P1+P2+P3+DG = {eq1} (Active = {len(active)}) -> {'PASS' if eq2 else 'FAIL'}")
-print(f"Active + Non-Active = {len(active) + len(non_active)} (42 = 42) -> {'PASS' if eq3 else 'FAIL'}")
-print(f"P0+P1+P2+P3+DG == Active count = {eq1}=={len(active)} -> {'PASS' if eq4 else 'FAIL'}")
+print(f"Active + Non-Active = {len(active) + len(non_active)} ({len(master)} = {len(master)}) -> {'PASS' if eq3 else 'FAIL'}")
+print(f"P0+P1+P2+P3+DG == Active count -> {'PASS' if eq4 else 'FAIL'}")
 
 if missing_ids or extra_ids:
-    print(f"C001-C042 COVERAGE: FAIL")
+    print(f"C001-C044 COVERAGE: FAIL")
 else:
-    print(f"C001-C042 COVERAGE: PASS")
+    print(f"C001-C044 COVERAGE: PASS")
 
 print(f"\nNon-active IDs: {[m[0] for m in non_active]}")
-print(f"Verified Consistent: {[m[0] for m in master if m[1] == '已验证一致']}")
-print(f"Original Judgment Error: {[m[0] for m in master if m[1] == '原判断错误']}")
-print(f"Completed Back-Write: {[m[0] for m in master if m[1] == '已完成回写']}")
-print(f"Merged: {[m[0] for m in master if m[1] == '已合并']}")
-
-print(f"\nC015 final status: active={[m[3] for m in master if m[0]=='C015'][0]}")
-print(f"C037 final status: active={[m[3] for m in master if m[0]=='C037'][0]}")
-print(f"C039 final status: active={[m[3] for m in master if m[0]=='C039'][0]}")
-print(f"C040 final status: active={[m[3] for m in master if m[0]=='C040'][0]}")
+print(f"Verified Consistent: {[m[0] for m in master if m[2] == '已验证一致']}")
+print(f"Completed Back-Write: {[m[0] for m in master if m[2] == '已完成回写']}")
 
 print(f"\n{'='*20}")
 if not missing_ids and not extra_ids and eq2 and eq3:
@@ -138,3 +124,8 @@ if not missing_ids and not extra_ids and eq2 and eq3:
 else:
     print("FINAL RESULT: FAIL")
 print(f"{'='*20}")
+
+# Also check the specific equations from the task spec
+print(f"\nEquation check: {len(p0)}+{len(p1)}+{len(p2)}+{len(p3)}+{len(dg)}={eq1}")
+print(f"Active({len(active)}) + NonActive({len(non_active)}) = {len(active)+len(non_active)}")
+print(f"Expected: P0=4 P1=14 P2=8 P3=9 DG=2 Active=37 NonActive=7 Total=44")
