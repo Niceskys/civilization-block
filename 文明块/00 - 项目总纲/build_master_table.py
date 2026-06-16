@@ -40,8 +40,8 @@ master = [
     # === Active: P1 - Early Experience ===
     ("C011", "6.4数值模拟是否使用旧规则", "待核查", "前期体验", "P1", True, False, "P1-RW-007", "6.4可能未同步V2参数"),
     ("C014", "怪物/危机/新手保护概念混淆", "等待设计者裁决", "前期体验", "P1", True, True, "P1-RW-002", "术语混用需区分"),
-    ("C024", "连续生产进度规则", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-003", "4.2未定义结算方式"),
-    ("C027", "燃料单一来源限制", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-004", "4.2仅有垃圾场产出"),
+    ("C024", "连续生产进度规则", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-04", "已写入4.2/4.3/5.3/7.1，完成提交8c3620b"),
+    ("C027", "燃料单一来源限制", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-04", "已写入4.1/4.2/工坊/树场/6.1，初次2de39f3，最终5fc4669"),
     ("C032", "连续无损失时惩罚性难度增加", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-013", "7.2惩罚强者，裁决要求反转"),
     
     # === Active: P2 - Mid-Late Balance ===
@@ -131,4 +131,4 @@ print(f"{'='*20}")
 # Also check the specific equations from the task spec
 print(f"\nEquation check: {len(p0)}+{len(p1)}+{len(p2)}+{len(p3)}+{len(dg)}={eq1}")
 print(f"Active({len(active)}) + NonActive({len(non_active)}) = {len(active)+len(non_active)}")
-print(f"Expected: P0=0 P1=5 P2=8 P3=8 DG=2 Active=23 NonActive=21 Total=44")
+print(f"Expected: P0=0 P1=3 P2=8 P3=8 DG=2 Active=21 NonActive=23 Total=44")
