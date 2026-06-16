@@ -34,11 +34,11 @@ master = [
     ("C027", "燃料单一来源限制", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-04", "已写入4.1/4.2/工坊/树场/6.1，初次2de39f3，最终5fc4669"),
     ("C032", "连续无损失时惩罚性难度增加", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-05", "已写入7.2/6.3，完成提交34a41bb"),
     ("C033", "Lv3自动运转规则位置", "已完成回写", "中后期平衡", "无", False, False, "P2-BATCH-01", "已写入2.1/1.3，完成提交e2d7dd2"),
+    ("C012", "建筑详情/6.1/9.2价格是否一致", "已完成核查与回写", "中后期平衡", "无", False, False, "P2-BATCH-02", "已写入9.2/6.1/详情，完成提交5d3908c"),
+    ("C013", "NPC每日消耗是否一致", "已完成核查与回写", "中后期平衡", "无", False, False, "P2-BATCH-02", "已写入3.1/6.2，完成提交5d3908c"),
     
     # === Active: P2 - Mid-Late Balance ===
     ("C004", "堆叠惩罚与垂直城市核心定位冲突", "等待设计者裁决", "中后期平衡", "P2", True, True, "P2-RW-001", "2.1鼓励vs1.2惩罚"),
-    ("C012", "建筑详情/6.1/9.2价格是否一致", "待核查", "中后期平衡", "P2", True, False, "P2-RW-002", "三源数据需核对"),
-    ("C013", "NPC每日消耗是否一致", "待核查", "中后期平衡", "P2", True, False, "P2-RW-003", "3.1/4.1/6.2三方"),
     ("C017", "季节活动错过等一年与反FOMO冲突", "等待设计者裁决", "中后期平衡", "P2", True, True, "P2-RW-005", "1.6 vs 裁决反FOMO"),
     ("C020", "同一机制多文件维护完整数值", "待核查", "中后期平衡", "P2", True, False, "P2-RW-002", "6.1+各建筑详情"),
     ("C025", "堆叠规则分散矛盾", "待核查", "中后期平衡", "P2", True, False, "P2-RW-001", "1.2和2.2分散"),
@@ -121,4 +121,4 @@ print(f"{'='*20}")
 # Also check the specific equations from the task spec
 print(f"\nEquation check: {len(p0)}+{len(p1)}+{len(p2)}+{len(p3)}+{len(dg)}={eq1}")
 print(f"Active({len(active)}) + NonActive({len(non_active)}) = {len(active)+len(non_active)}")
-print(f"Expected after C033 close: P0=0 P1=0 P2=7 P3=8 DG=2 Active=17 NonActive=27 Total=44")
+print(f"Expected after C012/C013 close: P0=0 P1=0 P2=5 P3=8 DG=2 Active=15 NonActive=29 Total=44")
