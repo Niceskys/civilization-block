@@ -30,18 +30,18 @@ master = [
     ("C043", "首建加速机会生命周期与返还边界缺失", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-01", "已写入2.1/5.2/6.1/7.1，提交55c4c36"),
     ("C044", "首建加速与额外资源施工加速叠加关系缺失", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-01", "已写入2.1/5.2/6.1/7.1，提交55c4c36"),
     ("C031", "教程提示系统状态机缺失", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-02", "已写入5.8/7.1，提交5915d3f"),
+    ("C009", "首次工作分配显示详细程度", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-03", "已写入5.4，提交f295c0a"),
+    ("C023", "主线任务前30分钟弹窗规则", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-03", "已写入10.3，提交f295c0a"),
+    ("C030", "建造面板Tab数量", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-03", "已写入5.2，提交f295c0a"),
     
     # === Active: P0 - Implementation Blocking ===
     # (none currently)
     
     # === Active: P1 - Early Experience ===
-    ("C009", "首次工作分配显示详细程度", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-001", "3.3显示7维，B级要求前2项"),
     ("C011", "6.4数值模拟是否使用旧规则", "待核查", "前期体验", "P1", True, False, "P1-RW-007", "6.4可能未同步V2参数"),
     ("C014", "怪物/危机/新手保护概念混淆", "等待设计者裁决", "前期体验", "P1", True, True, "P1-RW-002", "术语混用需区分"),
-    ("C023", "主线任务前30分钟弹窗规则", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-002", "10.1弹窗vsB级去重"),
     ("C024", "连续生产进度规则", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-003", "4.2未定义结算方式"),
     ("C027", "燃料单一来源限制", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-004", "4.2仅有垃圾场产出"),
-    ("C030", "建造面板Tab数量", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-005", "5.2定义8个Tab，缺推荐标签"),
     ("C032", "连续无损失时惩罚性难度增加", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-013", "7.2惩罚强者，裁决要求反转"),
     
     # === Active: P2 - Mid-Late Balance ===
@@ -131,4 +131,4 @@ print(f"{'='*20}")
 # Also check the specific equations from the task spec
 print(f"\nEquation check: {len(p0)}+{len(p1)}+{len(p2)}+{len(p3)}+{len(dg)}={eq1}")
 print(f"Active({len(active)}) + NonActive({len(non_active)}) = {len(active)+len(non_active)}")
-print(f"Expected: P0=0 P1=8 P2=8 P3=8 DG=2 Active=26 NonActive=18 Total=44")
+print(f"Expected: P0=0 P1=5 P2=8 P3=8 DG=2 Active=23 NonActive=21 Total=44")
