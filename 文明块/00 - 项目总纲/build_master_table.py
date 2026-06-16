@@ -14,11 +14,6 @@ master = [
     ("C002", "新存档是否默认暂停", "已完成回写", "实现阻断", "无", False, False, "P0-RW-001", "已写入1.3/5.1/2.1，提交901895b"),
     ("C005", "首次建造加速是否已写入", "已完成回写", "实现阻断", "无", False, False, "P0-RW-003", "已写入2.1/6.1/四个建筑详情，提交450a260"),
     ("C022", "暂停定义和停止范围", "已完成回写", "文档治理", "无", False, False, "P0-RW-001", "与C002一并回写，提交901895b"),
-    
-    # === Non-Active: Merged ===
-    # (none currently)
-    
-    # === Non-Active: Completed Back-Write ===
     ("C008", "初始NPC入住规则", "已完成回写", "实现阻断", "无", False, False, "P0-RW-005", "已写入3.1/房屋/5.3，提交f912821+ba69a96"),
     ("C010", "前3座建筑免费重新放置", "已完成回写", "实现阻断", "无", False, False, "P0-RW-006", "已写入2.1/5.2/7.1，提交35dc50f"),
     ("C021", "拆除规则不一致", "已完成回写", "文档治理", "无", False, False, "P0-RW-006", "已写入2.1/5.2/7.1，提交35dc50f"),
@@ -38,12 +33,7 @@ master = [
     ("C024", "连续生产进度规则", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-04", "已写入4.2/4.3/5.3/7.1，完成提交8c3620b"),
     ("C027", "燃料单一来源限制", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-04", "已写入4.1/4.2/工坊/树场/6.1，初次2de39f3，最终5fc4669"),
     ("C032", "连续无损失时惩罚性难度增加", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-05", "已写入7.2/6.3，完成提交34a41bb"),
-    
-    # === Active: P0 - Implementation Blocking ===
-    # (none currently)
-    
-    # === Active: P1 - Early Experience ===
-    # (none currently - all P1 completed)
+    ("C033", "Lv3自动运转规则位置", "已完成回写", "中后期平衡", "无", False, False, "P2-BATCH-01", "已写入2.1/1.3，完成提交e2d7dd2"),
     
     # === Active: P2 - Mid-Late Balance ===
     ("C004", "堆叠惩罚与垂直城市核心定位冲突", "等待设计者裁决", "中后期平衡", "P2", True, True, "P2-RW-001", "2.1鼓励vs1.2惩罚"),
@@ -53,7 +43,6 @@ master = [
     ("C020", "同一机制多文件维护完整数值", "待核查", "中后期平衡", "P2", True, False, "P2-RW-002", "6.1+各建筑详情"),
     ("C025", "堆叠规则分散矛盾", "待核查", "中后期平衡", "P2", True, False, "P2-RW-001", "1.2和2.2分散"),
     ("C026", "NPC性格对效率的影响", "等待设计者裁决", "中后期平衡", "P2", True, True, "P2-RW-007", "3.1性格vs3.7好感度"),
-    ("C033", "Lv3自动运转规则位置", "待核查", "中后期平衡", "P2", True, False, "P2-RW-006", "2.1和1.3同时维护"),
     
     # === Active: P3 - Document Governance ===
     ("C018", "引用文件名或章节不存在", "待核查", "文档治理", "P3", True, False, "P3-RW-001", "全库需核查引用有效性"),
@@ -132,4 +121,4 @@ print(f"{'='*20}")
 # Also check the specific equations from the task spec
 print(f"\nEquation check: {len(p0)}+{len(p1)}+{len(p2)}+{len(p3)}+{len(dg)}={eq1}")
 print(f"Active({len(active)}) + NonActive({len(non_active)}) = {len(active)+len(non_active)}")
-print(f"Expected after P1 close: P0=0 P1=0 P2=8 P3=8 DG=2 Active=18 NonActive=26 Total=44")
+print(f"Expected after C033 close: P0=0 P1=0 P2=7 P3=8 DG=2 Active=17 NonActive=27 Total=44")
