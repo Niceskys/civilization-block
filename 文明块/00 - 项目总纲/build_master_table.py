@@ -27,6 +27,8 @@ master = [
     ("C016", "效率惩罚与专业化加成矛盾", "已完成回写", "前期体验", "无", False, False, "P1-RW-008", "已写入2.1/2.2/5.3/6.1，提交471f19f"),
     ("C036", "前30分钟方案加速规则是否已写入", "已完成回写", "前期体验", "无", False, False, "P0-RW-003", "实际由P0-RW-003完成，治理确认P1-GOV-001"),
     ("C019", "已定稿文件被后续方案要求修改", "已完成治理回写", "文档治理", "无", False, False, "P1-GOV-001", "本轮在00.1补充版本化修改流程"),
+    ("C043", "首建加速机会生命周期与返还边界缺失", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-01", "已写入2.1/5.2/6.1/7.1，提交55c4c36"),
+    ("C044", "首建加速与额外资源施工加速叠加关系缺失", "已完成回写", "前期体验", "无", False, False, "P1-BATCH-01", "已写入2.1/5.2/6.1/7.1，提交55c4c36"),
     
     # === Active: P0 - Implementation Blocking ===
     # (none currently)
@@ -41,8 +43,6 @@ master = [
     ("C030", "建造面板Tab数量", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-005", "5.2定义8个Tab，缺推荐标签"),
     ("C031", "教程提示系统状态机缺失", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-006", "5.8无状态机定义"),
     ("C032", "连续无损失时惩罚性难度增加", "已裁决待回写", "前期体验", "P1", True, False, "P1-RW-013", "7.2惩罚强者，裁决要求反转"),
-    ("C043", "首次建造加速机会的消耗时点与返还规则缺失", "待核查", "前期体验", "P1", True, True, "P1-RW-013", "消耗时点与摧毁/取消返还规则缺失"),
-    ("C044", "首次建造加速与资源施工加速的叠加关系缺失", "等待设计者裁决", "前期体验", "P1", True, True, "P1-RW-014", "两种加速能否叠加未定义"),
     
     # === Active: P2 - Mid-Late Balance ===
     ("C004", "堆叠惩罚与垂直城市核心定位冲突", "等待设计者裁决", "中后期平衡", "P2", True, True, "P2-RW-001", "2.1鼓励vs1.2惩罚"),
@@ -131,4 +131,4 @@ print(f"{'='*20}")
 # Also check the specific equations from the task spec
 print(f"\nEquation check: {len(p0)}+{len(p1)}+{len(p2)}+{len(p3)}+{len(dg)}={eq1}")
 print(f"Active({len(active)}) + NonActive({len(non_active)}) = {len(active)+len(non_active)}")
-print(f"Expected: P0=0 P1=11 P2=8 P3=8 DG=2 Active=29 NonActive=15 Total=44")
+print(f"Expected: P0=0 P1=9 P2=8 P3=8 DG=2 Active=27 NonActive=17 Total=44")
