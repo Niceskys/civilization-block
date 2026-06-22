@@ -1,0 +1,8 @@
+.appdata/
+.dotnet_home/
+.nuget_packages/
+bin/
+obj/
+**/bin/
+**/obj/
+tools/start-claude-deepseek.local.ps1

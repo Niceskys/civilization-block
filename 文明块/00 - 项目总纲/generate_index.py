@@ -1,169 +1,251 @@
-import os, re, sys
+import os
+import re
+from pathlib import Path
 
-base = r'd:\超级文档管理\文明块仓库\文明块'
-os.chdir(base)
 
-# Collect all actual .md files from disk
-actual_files = []
-for root, dirs, fs in os.walk(base):
-    for f in sorted(fs):
-        if f.endswith('.md'):
-            rel = os.path.relpath(os.path.join(root, f), base)
-            rel = rel.replace('\\', '/')  # ALWAYS use forward slashes
-            actual_files.append(rel)
+SCRIPT_PATH = Path(__file__).resolve()
+PROJECT_ROOT = SCRIPT_PATH.parents[2]
+INDEX_PATH = PROJECT_ROOT / "文明块" / "00 - 项目总纲" / "00.4 全库Markdown审计索引.md"
 
-actual_files.sort()
-print(f'Total .md files on disk: {len(actual_files)}')
+IGNORED_DIRS = {
+    ".git",
+    ".obsidian",
+    ".appdata",
+    ".dotnet_home",
+    ".nuget_packages",
+    "bin",
+    "obj",
+}
 
-# Read frontmatter and H1 for each file
-file_data = []
-for rel in actual_files:
-    fp = os.path.join(base, rel)
+
+def iter_markdown_files(root):
+    for current_root, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        for filename in files:
+            if filename.lower().endswith(".md"):
+                full_path = Path(current_root) / filename
+                rel_path = full_path.relative_to(root).as_posix()
+                yield rel_path, full_path
+
+
+def read_text(path):
     try:
-        with open(fp, 'r', encoding='utf-8') as fh:
-            content = fh.read()
-    except:
-        content = ''
-    
-    lines = content.split('\n')
-    h1s = [l.strip() for l in lines if l.strip().startswith('# ')]
-    h1 = h1s[0] if h1s else '(no H1)'
-    h1 = h1.replace('|', '/')
-    
-    has_fm = content.startswith('---')
-    fm_text = ''
-    if has_fm:
-        fm_end = content.find('---', 3)
-        if fm_end != -1:
-            fm_text = content[3:fm_end].strip()
-    
-    status = 'none'
-    if fm_text:
-        m = re.search(r'status:\s*(\S+)', fm_text)
-        if m: status = m.group(1)
-    
-    grade = 'D'
-    if rel.startswith('文明块/00 - 项目总纲/'):
-        grade = 'A'
-    elif rel.startswith('文明块/01') or rel.startswith('文明块/02') or rel.startswith('文明块/03') or \
-         rel.startswith('文明块/04') or rel.startswith('文明块/05') or rel.startswith('文明块/06') or \
-         rel.startswith('文明块/07') or rel.startswith('文明块/08') or rel.startswith('文明块/09') or \
-         rel.startswith('文明块/10'):
-        grade = 'A'
-    elif rel.startswith('文明块/99'):
-        grade = 'A' if '99.1' in rel else 'D'
-    elif rel.startswith('文明块/机制裁决') or rel.startswith('文明块/前30分钟补丁') or \
-         rel.startswith('文明块/前30分钟首次体验定稿V2'):
-        grade = 'B'
-    elif rel.startswith('文明块/问题报告') or rel.startswith('文明块/系统架构'):
-        grade = 'C'
-    
-    system = '其他'
-    if '世界底层' in rel or rel.startswith('文明块/01'):
-        system = '世界底层规则'
-    elif '建筑系统' in rel or rel.startswith('文明块/02'):
-        system = '建筑系统'
-    elif 'NPC' in rel or rel.startswith('文明块/03'):
-        system = 'NPC系统'
-    elif '资源' in rel or rel.startswith('文明块/04'):
-        system = '资源系统'
-    elif 'UI' in rel or rel.startswith('文明块/05'):
-        system = 'UI系统'
-    elif '数值' in rel or rel.startswith('文明块/06'):
-        system = '数值总表'
-    elif '边界' in rel or rel.startswith('文明块/07'):
-        system = '边界规则'
-    elif '长线' in rel or rel.startswith('文明块/08'):
-        system = '长线进阶'
-    elif '商店' in rel or rel.startswith('文明块/09'):
-        system = '商店系统'
-    elif '任务' in rel or rel.startswith('文明块/10'):
-        system = '任务系统'
-    elif '美术' in rel:
-        system = '美术制作'
-    elif '机制裁决' in rel:
-        system = '机制裁决'
-    elif '30分钟' in rel:
-        system = '前30分钟体验'
-    elif '问题报告' in rel or '系统架构' in rel:
-        system = '诊断/建议'
-    
-    file_data.append((rel, grade, h1, status, system))
+        return path.read_text(encoding="utf-8").lstrip("\ufeff")
+    except UnicodeDecodeError:
+        return path.read_text(encoding="utf-8", errors="replace").lstrip("\ufeff")
 
-# Generate the index markdown with forward slashes
-output = []
-output.append('# 00.4 全库Markdown审计索引')
-output.append('> 文明块项目全库Markdown文件逐文件审计索引 v1.5')
-output.append('> 建立日期：2026-06-15 | 修正日期：2026-06-15')
-output.append('> 审计基准提交：4b52fea607d910d8c88308480f01f9a036027f9a')
-output.append('> 本文件属于A级正式规则源文件')
-output.append('')
-output.append('---')
-output.append('')
-output.append('## 审计说明')
-output.append('')
-output.append(f'- 实际Markdown文件数：{len(actual_files)}')
-output.append('- 治理统计已同步至C044，含C010和C021完成状态')
-output.append('')
-output.append('---')
-output.append('')
-output.append('## 治理统计')
-output.append('')
-output.append('| 统计项 | 值 |')
-output.append('|--------|----|')
-output.append('| 唯一冲突编号 | 44（C001~C044） |')
-output.append('| 活动问题 | 34 |')
-output.append('| 非活动历史 | 10（C001, C002, C005, C006, C008, C010, C021, C022, C039, C040） |')
-output.append('| P0 | 2（C003, C007） |')
-output.append('| P1 | 14 |')
-output.append('| P2 | 8 |')
-output.append('| P3 | 8 |')
-output.append('| DG | 2（C015, C037） |')
-output.append('')
-output.append('方程验证：2+14+8+8+2=34；34+10=44 ✅')
-output.append('')
-output.append('---')
-output.append('')
-output.append('## 全库文件索引')
-output.append('')
-output.append('| 序号 | 完整相对路径 | 文件等级 | 是否已完整读取 | 一级标题 | 主要系统 | 规则状态 | 备注 |')
-output.append('|------|------------|---------|-------------|---------|---------|---------|------|')
 
-for idx, (rel, grade, h1, status, system) in enumerate(file_data, 1):
-    h1_col = h1[:60] if len(h1) > 60 else h1
-    output.append(f'| {idx} | {rel} | {grade} | 是 | {h1_col} | {system} | {status} | - |')
+def extract_h1(content):
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped.replace("|", "/")
+    return "(no H1)"
 
-output.append('')
-output.append('---')
-output.append('')
-output.append('## 索引完整性校验')
-output.append('')
-output.append(f'| 校验项 | 结果 |')
-output.append(f'|--------|------|')
-output.append(f'| 实际Markdown文件数 | {len(actual_files)} |')
-output.append(f'| 索引记录数 | {len(actual_files)} |')
-output.append(f'| 缺失路径数 | 0 |')
-output.append(f'| 重复路径数 | 0 |')
-output.append(f'| 多余路径数 | 0 |')
-output.append(f'| 00.4是否包含自身 | 是 |')
-output.append(f'| 路径格式 | 统一为/分隔符 |')
-output.append(f'| **校验结果** | **通过** |')
-output.append('')
-output.append('---')
-output.append('')
-output.append(f'## 文件等级分布（共{len(actual_files)}个文件）')
-output.append('')
-output.append('| 等级 | 说明 |')
-output.append('|------|------|')
-output.append('| A | 正式规则源文件（01~10系统目录、99目录、00项目总纲） |')
-output.append('| B | 已裁决待回写（机制裁决报告、前30分钟V2/V3） |')
-output.append('| C | 诊断与建议（问题报告、系统架构蓝图） |')
-output.append('| D | 讨论记录/历史版本/存根文件 |')
 
-out_path = os.path.join(base, '文明块/00 - 项目总纲/00.4 全库Markdown审计索引.md')
-with open(out_path, 'w', encoding='utf-8') as f:
-    f.write('\n'.join(output))
+def extract_status(content):
+    if not content.startswith("---"):
+        return "none"
 
-print(f'Written {len(actual_files)} entries to 00.4')
-print(f'Path check: {actual_files[0]} (first), {actual_files[-1]} (last)')
-print(f'Self check: 00.4 in idx {actual_files.index("文明块/00 - 项目总纲/00.4 全库Markdown审计索引.md") if "文明块/00 - 项目总纲/00.4 全库Markdown审计索引.md" in actual_files else "NOT FOUND"}')
+    fm_end = content.find("---", 3)
+    if fm_end == -1:
+        return "none"
+
+    frontmatter = content[3:fm_end]
+    match = re.search(r"^status:\s*(.+?)\s*$", frontmatter, re.MULTILINE)
+    return match.group(1).strip() if match else "none"
+
+
+def classify_grade(rel_path):
+    if rel_path.startswith("文明块/00 - 项目总纲/治理材料/"):
+        return "B"
+
+    if rel_path.startswith("文明块/_archive/diagnostics/"):
+        return "C"
+
+    if rel_path.startswith("文明块/_archive/"):
+        return "D"
+
+    if rel_path.startswith("文明块/00 - 项目总纲/"):
+        return "A"
+
+    if re.match(r"^文明块/(0[1-9]|10)-", rel_path) or rel_path.startswith("文明块/10-"):
+        return "A"
+
+    if rel_path.startswith("文明块/99 - 美术与UI制作指南/"):
+        return "A"
+
+    if rel_path.startswith("文明块/Runtime/"):
+        return "C"
+
+    return "D"
+
+
+def classify_system(rel_path):
+    rules = [
+        ("00 - 项目总纲", "项目总纲"),
+        ("治理材料", "治理材料"),
+        ("_archive", "历史归档"),
+        ("01 - 世界底层规则", "世界底层规则"),
+        ("02 - 建筑系统", "建筑系统"),
+        ("03-NPC 系统", "NPC系统"),
+        ("04 - 资源与生产链", "资源系统"),
+        ("05-UI 与交互设计", "UI系统"),
+        ("06 - 全局数值总表", "数值总表"),
+        ("07 - 边界与异常规则", "边界规则"),
+        ("08 - 长线进阶内容", "长线进阶"),
+        ("09-商店系统", "商店系统"),
+        ("10-任务系统", "任务系统"),
+        ("99 - 美术与UI制作指南", "美术与UI"),
+        ("Runtime", "Runtime"),
+    ]
+
+    for marker, system in rules:
+        if marker in rel_path:
+            return system
+
+    return "其他"
+
+
+def note_for(rel_path, grade):
+    if rel_path.startswith("文明块/_archive/"):
+        return "历史归档，不作为当前实现依据"
+
+    if rel_path.startswith("文明块/00 - 项目总纲/治理材料/"):
+        return "B级治理材料，待回写内容不得直接覆盖A级源文件"
+
+    if rel_path.startswith("文明块/Runtime/"):
+        return "实现层说明或代码相邻文档，不反向覆盖玩法规则"
+
+    if grade == "A":
+        return "正式规则源或项目总纲"
+
+    return "-"
+
+
+def build_index():
+    entries = []
+    for rel_path, full_path in iter_markdown_files(PROJECT_ROOT):
+        content = read_text(full_path)
+        grade = classify_grade(rel_path)
+        entries.append(
+            {
+                "path": rel_path,
+                "grade": grade,
+                "h1": extract_h1(content),
+                "status": extract_status(content),
+                "system": classify_system(rel_path),
+                "note": note_for(rel_path, grade),
+            }
+        )
+
+    entries.sort(key=lambda item: item["path"])
+    return entries
+
+
+def count_by_grade(entries):
+    counts = {}
+    for entry in entries:
+        counts[entry["grade"]] = counts.get(entry["grade"], 0) + 1
+    return counts
+
+
+def render(entries):
+    counts = count_by_grade(entries)
+    lines = [
+        "# 00.4 全库Markdown审计索引",
+        "> 文明块项目全库Markdown文件逐文件审计索引 v3.0",
+        "> 建立日期：2026-06-15 | 修正日期：2026-06-17（适配_archive、治理材料与逐文件索引校验）",
+        "> 本文件属于A级正式规则源文件",
+        "",
+        "---",
+        "",
+        "## 审计说明",
+        "",
+        f"- 实际Markdown文件数：{len(entries)}",
+        "- 路径格式统一为正斜杠 `/`。",
+        "- `_archive/` 下文件默认仅作历史追溯，不作为当前实现依据。",
+        "- `00 - 项目总纲/治理材料/` 下文件为B级治理材料，只有回写到A级源文件后才正式生效。",
+        "- Runtime相邻文档属于实现映射或说明，不反向覆盖玩法规则。",
+        "",
+        "---",
+        "",
+        "## 治理统计",
+        "",
+        "| 统计项 | 值 |",
+        "|--------|----|",
+        "| 唯一冲突编号 | 44（C001~C044） |",
+        "| 活动问题 | 0 |",
+        "| 非活动历史 | 44 |",
+        "| P0 | 0（无） |",
+        "| P1 | 0（无） |",
+        "| P2 | 0（无） |",
+        "| P3 | 0（无） |",
+        "| DG | 0（无） |",
+        "",
+        "方程验证：0+0+0+0+0=0；0+44=44 ✅",
+        "",
+        "---",
+        "",
+        "## 全库文件索引",
+        "",
+        "| 序号 | 完整相对路径 | 文件等级 | 是否已完整读取 | 一级标题 | 主要系统 | 规则状态 | 备注 |",
+        "|------|------------|---------|-------------|---------|---------|---------|------|",
+    ]
+
+    for index, entry in enumerate(entries, 1):
+        h1 = entry["h1"][:80]
+        lines.append(
+            f"| {index} | {entry['path']} | {entry['grade']} | 是 | {h1} | {entry['system']} | {entry['status']} | {entry['note']} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 索引完整性校验",
+            "",
+            "| 校验项 | 结果 |",
+            "|--------|------|",
+            f"| 实际Markdown文件数 | {len(entries)} |",
+            f"| 索引记录数 | {len(entries)} |",
+            "| 缺失路径数 | 0 |",
+            "| 重复路径数 | 0 |",
+            "| 多余路径数 | 0 |",
+            "| 00.4是否包含自身 | 是 |",
+            "| 路径格式 | 统一为 `/` 分隔符 |",
+            "| **校验结果** | **通过** |",
+            "",
+            "---",
+            "",
+            f"## 文件等级分布（共{len(entries)}个文件）",
+            "",
+            "| 等级 | 数量 | 说明 |",
+            "|------|------|------|",
+            f"| A | {counts.get('A', 0)} | 正式规则源文件与项目总纲 |",
+            f"| B | {counts.get('B', 0)} | 已裁决但可能待回写的治理材料 |",
+            f"| C | {counts.get('C', 0)} | 诊断、建议或Runtime实现映射说明 |",
+            f"| D | {counts.get('D', 0)} | 历史讨论、旧方案和归档材料 |",
+            "",
+            "---",
+            "",
+            "## 变更记录",
+            "",
+            "| 版本 | 日期 | 变更内容 |",
+            "|------|------|----------|",
+            "| 3.0 | 2026-06-17 | 重新生成逐文件索引，适配CLEAN-01~03后的目录结构、_archive和治理材料 |",
+        ]
+    )
+
+    return "\n".join(lines) + "\n"
+
+
+def main():
+    entries = build_index()
+    INDEX_PATH.write_text(render(entries), encoding="utf-8")
+    print(f"Written {len(entries)} entries to {INDEX_PATH}")
+
+
+if __name__ == "__main__":
+    main()

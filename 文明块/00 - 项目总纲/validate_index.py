@@ -1,107 +1,141 @@
-import os, sys, re
+import os
+import re
+from pathlib import Path
 
-base = r'd:\超级文档管理\文明块仓库\文明块'
-os.chdir(base)
 
-# 1. Count all actual .md files
-actual_md = {}
-for root, dirs, fs in os.walk(base):
-    for f in sorted(fs):
-        if f.endswith('.md'):
-            rel = os.path.relpath(os.path.join(root, f), base)
-            actual_md[rel] = os.path.getsize(os.path.join(root, f))
+SCRIPT_PATH = Path(__file__).resolve()
+PROJECT_ROOT = SCRIPT_PATH.parents[2]
+INDEX_PATH = PROJECT_ROOT / "文明块" / "00 - 项目总纲" / "00.4 全库Markdown审计索引.md"
 
-print(f'ACTUAL_MD_FILES={len(actual_md)}')
+IGNORED_DIRS = {
+    ".git",
+    ".obsidian",
+    ".appdata",
+    ".dotnet_home",
+    ".nuget_packages",
+    "bin",
+    "obj",
+}
 
-# 2. Read 00.4 index and extract paths
-index_path = r'文明块\00 - 项目总纲\00.4 全库Markdown审计索引.md'
-indexed_paths = {}
-if os.path.exists(index_path):
-    with open(index_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-    
+
+def iter_actual_markdown(root):
+    """Walk the repository and return a set of relative paths to all .md files."""
+    paths = set()
+    for current_root, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        for filename in files:
+            if filename.lower().endswith(".md"):
+                full_path = Path(current_root) / filename
+                paths.add(full_path.relative_to(root).as_posix())
+    return paths
+
+
+def read_index_paths():
+    """Parse the index table and return a list of indexed markdown paths."""
+    if not INDEX_PATH.exists():
+        print(f"ERROR: Index file not found: {INDEX_PATH}")
+        print("Please run generate_index.py first to create the index.")
+        raise SystemExit(1)
+
+    indexed = []
     in_table = False
-    for line in lines:
-        if line.strip().startswith('| 序号 | 完整相对路径'):
+    for line in INDEX_PATH.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("| 序号 | 完整相对路径"):
             in_table = True
             continue
-        if in_table and line.strip().startswith('|') and '------' not in line:
-            parts = [p.strip() for p in line.split('|')]
-            if len(parts) >= 3:
-                seq = parts[1]
-                path = parts[2]
-                if seq.isdigit():
-                    indexed_paths[path] = seq
 
-print(f'INDEXED_PATHS={len(indexed_paths)}')
-
-# 3. Find missing and extra
-missing = set(actual_md.keys()) - set(indexed_paths.keys())
-extra = set(indexed_paths.keys()) - set(actual_md.keys())
-duplicate = [p for p, cnt in [(p, list(indexed_paths.keys()).count(p)) for p in set(indexed_paths.keys())] if cnt > 1]
-
-print(f'MISSING={len(missing)} extra={len(extra)} duplicate={len(duplicate)}')
-if missing:
-    for m in sorted(missing):
-        print(f'  MISSING: {m}')
-if extra:
-    for e in sorted(extra):
-        print(f'  EXTRA: {e}')
-
-# 4. Check if 00.4 includes itself
-self_in = '文明块\\00 - 项目总纲\\00.4 全库Markdown审计索引.md' in indexed_paths
-print(f'00.4_INCLUDES_SELF={self_in}')
-
-# 5. Check C041 and C042: are they mentioned anywhere?
-for check in ['C041', 'C042']:
-    found = False
-    for root, dirs, fs in os.walk(base):
-        for f in fs:
-            if f.endswith('.md') and '00' in os.path.join(root, f):
-                fp = os.path.join(root, f)
-                with open(fp, 'r', encoding='utf-8', errors='replace') as fh:
-                    content = fh.read()
-                if check in content:
-                    found = True
-                    print(f'{check}_FOUND_IN={os.path.relpath(fp, base)}')
-                    break
-        if found:
+        if in_table and (not stripped.startswith("|") or stripped.startswith("---")):
             break
-    if not found:
-        print(f'{check}: NOT FOUND in any 00 file')
 
-# 6. Check building detail files for status
-print('\nBUILDING_DETAIL_STATUS_CHECK:')
-bd_dir = r'文明块\02 - 建筑系统\单个建筑详情'
-no_status = []
-if os.path.exists(bd_dir):
-    for f in sorted(os.listdir(bd_dir)):
-        if f.endswith('.md'):
-            fp = os.path.join(bd_dir, f)
-            with open(fp, 'r', encoding='utf-8') as fh:
-                content = fh.read()
-            has_status = 'status:' in content[:500] if content.startswith('---') else False
-            if not has_status:
-                no_status.append(f)
+        if not in_table or "------" in stripped:
+            continue
 
-print(f'  Files without status: {len(no_status)}')
-for f in no_status:
-    print(f'    {f}')
+        parts = [part.strip() for part in stripped.split("|")]
+        if len(parts) < 4:
+            continue
 
-# 7. Check if 文明块\ChatGPT_完整讨论包 has stub files
-print('\nSTUB_FILE_CHECK:')
-stub_path = r'文明块\ChatGPT_完整讨论包'
-stubs = []
-if os.path.exists(stub_path):
-    for f in sorted(os.listdir(stub_path)):
-        if f.endswith('.md'):
-            fp = os.path.join(stub_path, f)
-            sz = os.path.getsize(fp)
-            if sz < 50:
-                stubs.append((f, sz))
+        seq = parts[1]
+        rel_path = parts[2].replace("\\", "/")
+        if seq.isdigit() and rel_path.endswith(".md"):
+            indexed.append(rel_path)
 
-print(f'  Stub files (<50B): {len(stubs)}')
-for f, sz in stubs:
-    print(f'    {f} ({sz}B)')
+    if not in_table:
+        print('ERROR: Could not find table header "| 序号 | 完整相对路径" in index file.')
+        print("The index file may be malformed or the header format has changed.")
+        raise SystemExit(1)
 
-print('\n=== ALL CHECKS COMPLETE ===')
+    return indexed
+
+
+def find_duplicate_paths(paths):
+    """Return a set of paths that appear more than once in the given list."""
+    seen = set()
+    duplicates = set()
+    for path in paths:
+        if path in seen:
+            duplicates.add(path)
+        seen.add(path)
+    return duplicates
+
+
+def check_status_for_building_details():
+    """Check that all files in 单个建筑详情 have a status field in frontmatter."""
+    building_dir = PROJECT_ROOT / "文明块" / "02 - 建筑系统" / "单个建筑详情"
+    if not building_dir.exists():
+        return []
+
+    missing = []
+    for path in sorted(building_dir.glob("*.md")):
+        content = path.read_text(encoding="utf-8", errors="replace").lstrip("\ufeff")
+        if not content.startswith("---") or "status:" not in content[:500]:
+            missing.append(path.name)
+    return missing
+
+
+def main():
+    """Validate the index against actual markdown files in the repository."""
+    actual = iter_actual_markdown(PROJECT_ROOT)
+    indexed = read_index_paths()
+    indexed_set = set(indexed)
+    duplicates = find_duplicate_paths(indexed)
+
+    missing = actual - indexed_set
+    extra = indexed_set - actual
+    self_path = "文明块/00 - 项目总纲/00.4 全库Markdown审计索引.md"
+    self_in = self_path in indexed_set
+
+    print(f"ACTUAL_MD_FILES={len(actual)}")
+    print(f"INDEXED_PATHS={len(indexed)}")
+    print(f"MISSING={len(missing)} extra={len(extra)} duplicate={len(duplicates)}")
+
+    if missing:
+        for path in sorted(missing):
+            print(f"  MISSING: {path}")
+
+    if extra:
+        for path in sorted(extra):
+            print(f"  EXTRA: {path}")
+
+    if duplicates:
+        for path in sorted(duplicates):
+            print(f"  DUPLICATE: {path}")
+
+    print(f"00.4_INCLUDES_SELF={self_in}")
+
+    no_status = check_status_for_building_details()
+    print("\nBUILDING_DETAIL_STATUS_CHECK:")
+    print(f"  Files without status: {len(no_status)}")
+    for filename in no_status:
+        print(f"    {filename}")
+
+    passed = not missing and not extra and not duplicates and self_in
+    print("\n=== INDEX CHECK COMPLETE ===")
+    print(f"FINAL_RESULT={'PASS' if passed else 'FAIL'}")
+
+    if not passed:
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
