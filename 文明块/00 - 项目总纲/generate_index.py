@@ -13,8 +13,13 @@ IGNORED_DIRS = {
     ".appdata",
     ".dotnet_home",
     ".nuget_packages",
+    ".opencode",
     "bin",
     "obj",
+}
+
+SKIP_FILES = {
+    "AGENTS.md",
 }
 
 
@@ -25,6 +30,8 @@ def iter_markdown_files(root):
             if filename.lower().endswith(".md"):
                 full_path = Path(current_root) / filename
                 rel_path = full_path.relative_to(root).as_posix()
+                if rel_path in SKIP_FILES:
+                    continue
                 yield rel_path, full_path
 
 
@@ -69,7 +76,7 @@ def classify_grade(rel_path):
     if rel_path.startswith("文明块/00 - 项目总纲/"):
         return "A"
 
-    if re.match(r"^文明块/(0[1-9]|10)-", rel_path) or rel_path.startswith("文明块/10-"):
+    if re.match(r"^文明块/(0[1-9]|10)(?: - |-)", rel_path):
         return "A"
 
     if rel_path.startswith("文明块/99 - 美术与UI制作指南/"):
@@ -154,8 +161,8 @@ def render(entries):
     counts = count_by_grade(entries)
     lines = [
         "# 00.4 全库Markdown审计索引",
-        "> 文明块项目全库Markdown文件逐文件审计索引 v3.0",
-        "> 建立日期：2026-06-15 | 修正日期：2026-06-17（适配_archive、治理材料与逐文件索引校验）",
+        "> 文明块项目全库Markdown文件逐文件审计索引 v3.1",
+        "> 建立日期：2026-06-15 | 修正日期：2026-06-23（修复目录等级识别、增加等级校验、排除AI工具配置Markdown）",
         "> 本文件属于A级正式规则源文件",
         "",
         "---",
@@ -234,6 +241,7 @@ def render(entries):
             "",
             "| 版本 | 日期 | 变更内容 |",
             "|------|------|----------|",
+            "| 3.1 | 2026-06-23 | 修复01-10目录两种命名格式的A级识别、增加validate_index独立等级校验、排除.opencode与根目录AGENTS.md |",
             "| 3.0 | 2026-06-17 | 重新生成逐文件索引，适配CLEAN-01~03后的目录结构、_archive和治理材料 |",
         ]
     )
