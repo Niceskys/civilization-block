@@ -209,6 +209,31 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Remote session rejects unauthorized player without side effects", RemoteSessionRejectsUnauthorizedWithoutSideEffects);
             Run("Remote command events isolated from backlog, ordered, not replayed", RemoteCommandEventsIsolatedFromBacklog);
 
+            Run("Agricultural light Lv1 sunlamp generates 15 coverage cells", AgriculturalLightLv1SunlampGenerates15CoverageCells);
+            Run("Agricultural light coverage extends downward not upward", AgriculturalLightCoverageExtendsDownwardNotUpward);
+            Run("Agricultural light clips negative layers at base layer zero", AgriculturalLightClipsNegativeLayersAtBaseLayerZero);
+            Run("Agricultural light clips horizontal range at plot edge", AgriculturalLightClipsHorizontalRangeAtPlotEdge);
+            Run("Agricultural light completed building occludes farm above", AgriculturalLightCompletedBuildingOccludesFarmAbove);
+            Run("Agricultural light destroyed building does not occlude", AgriculturalLightDestroyedBuildingDoesNotOcclude);
+            Run("Agricultural light grace building still occludes", AgriculturalLightGraceBuildingStillOccludes);
+            Run("Agricultural light disabled building still occludes", AgriculturalLightDisabledBuildingStillOccludes);
+            Run("Agricultural light construction task does not occlude", AgriculturalLightConstructionTaskDoesNotOcclude);
+            Run("Agricultural light occluded farm recovers with active sunlamp coverage", AgriculturalLightOccludedFarmRecoversWithActiveSunlampCoverage);
+            Run("Agricultural light occluded farm without active sunlamp has no light", AgriculturalLightOccludedFarmWithoutActiveSunlampHasNoLight);
+            Run("Agricultural light sunlamp in different plot does not cover", AgriculturalLightSunlampInDifferentPlotDoesNotCover);
+            Run("Agricultural light overlapping multiple sunlamps do not duplicate", AgriculturalLightOverlappingMultipleSunlampsDoNotDuplicate);
+            Run("Agricultural light multi-cell farm partial coverage still no light", AgriculturalLightMultiCellFarmPartialCoverageStillNoLight);
+            Run("Agricultural light multi-cell farm full coverage has light", AgriculturalLightMultiCellFarmFullCoverageHasLight);
+            Run("Agricultural light sunlamp self-occludes but provides full coverage has light", AgriculturalLightSunlampSelfOccludesButProvidesFullCoverageHasLight);
+            Run("Agricultural light rotated multi-cell farm uses authoritative footprint", AgriculturalLightRotatedMultiCellFarmUsesAuthoritativeFootprint);
+            Run("Agricultural light excludes farm itself by building id", AgriculturalLightExcludesFarmItselfByBuildingId);
+            Run("Agricultural light rejects null building entry explicitly", AgriculturalLightRejectsNullBuildingEntryExplicitly);
+            Run("Agricultural light rejects null active sunlamp entry explicitly", AgriculturalLightRejectsNullActiveSunlampEntryExplicitly);
+            Run("Agricultural light coverage avoids coordinate overflow at plot maximum", AgriculturalLightCoverageAvoidsCoordinateOverflowAtPlotMaximum);
+            Run("Agricultural light rejects trailing null building after occluder", AgriculturalLightRejectsTrailingNullBuildingAfterOccluder);
+            Run("Agricultural light rejects trailing null sunlamp after coverage", AgriculturalLightRejectsTrailingNullSunlampAfterCoverage);
+            Run("Agricultural light final query validates sunlamps before daylight short circuit", AgriculturalLightFinalQueryValidatesSunlampsBeforeDaylightShortCircuit);
+
             if (Failures.Count == 0)
             {
                 Console.WriteLine("All runtime smoke tests passed.");
@@ -3708,6 +3733,630 @@ namespace WenMingBlocks.Runtime.Tests
             AssertEqual(server.CurrentState.Logistics.ConstructionTasks.Keys.Single(),
                 remote.CurrentState.Logistics.ConstructionTasks.Keys.Single(),
                 "Server and remote must agree on connector construction identity.");
+        }
+
+        private static void AgriculturalLightLv1SunlampGenerates15CoverageCells()
+        {
+            IReadOnlyList<SpatialGridCell> cells = AgriculturalLightRules.GetSunlampCoverageCells(
+                5, 5, 5, 0, 0, 20, 20, 64);
+
+            AssertEqual(15, cells.Count, "Lv1 sunlamp at interior position must generate exactly 15 coverage cells.");
+
+            bool hasCenter = false;
+            bool hasPlusX = false;
+            bool hasMinusX = false;
+            bool hasPlusY = false;
+            bool hasMinusY = false;
+            int layer5Count = 0;
+            int layer4Count = 0;
+            int layer3Count = 0;
+
+            for (int i = 0; i < cells.Count; i++)
+            {
+                if (cells[i].Layer == 5)
+                {
+                    layer5Count++;
+                    if (cells[i].X == 5 && cells[i].Y == 5) hasCenter = true;
+                    if (cells[i].X == 6 && cells[i].Y == 5) hasPlusX = true;
+                    if (cells[i].X == 4 && cells[i].Y == 5) hasMinusX = true;
+                    if (cells[i].X == 5 && cells[i].Y == 6) hasPlusY = true;
+                    if (cells[i].X == 5 && cells[i].Y == 4) hasMinusY = true;
+                }
+                else if (cells[i].Layer == 4) layer4Count++;
+                else if (cells[i].Layer == 3) layer3Count++;
+            }
+
+            AssertEqual(5, layer5Count, "BaseLayer must have 5 horizontal cells.");
+            AssertEqual(5, layer4Count, "BaseLayer-1 must have 5 horizontal cells.");
+            AssertEqual(5, layer3Count, "BaseLayer-2 must have 5 horizontal cells.");
+            AssertTrue(hasCenter, "Must include (0,0) offset.");
+            AssertTrue(hasPlusX, "Must include (+1,0) offset.");
+            AssertTrue(hasMinusX, "Must include (-1,0) offset.");
+            AssertTrue(hasPlusY, "Must include (0,+1) offset.");
+            AssertTrue(hasMinusY, "Must include (0,-1) offset.");
+        }
+
+        private static void AgriculturalLightCoverageExtendsDownwardNotUpward()
+        {
+            IReadOnlyList<SpatialGridCell> cells = AgriculturalLightRules.GetSunlampCoverageCells(
+                5, 5, 5, 0, 0, 20, 20, 64);
+
+            bool hasLayer6 = false;
+            for (int i = 0; i < cells.Count; i++)
+            {
+                if (cells[i].Layer == 6) hasLayer6 = true;
+            }
+
+            AssertFalse(hasLayer6, "Sunlamp coverage must NOT include BaseLayer+1 (upward).");
+        }
+
+        private static void AgriculturalLightClipsNegativeLayersAtBaseLayerZero()
+        {
+            IReadOnlyList<SpatialGridCell> cells = AgriculturalLightRules.GetSunlampCoverageCells(
+                5, 5, 0, 0, 0, 20, 20, 64);
+
+            AssertEqual(5, cells.Count, "BaseLayer 0 must clip layers -1 and -2, leaving only 5 cells (1 layer x 5).");
+
+            bool hasNegativeLayer = false;
+            for (int i = 0; i < cells.Count; i++)
+            {
+                if (cells[i].Layer < 0) hasNegativeLayer = true;
+            }
+
+            AssertFalse(hasNegativeLayer, "No cell must have negative layer.");
+        }
+
+        private static void AgriculturalLightClipsHorizontalRangeAtPlotEdge()
+        {
+            IReadOnlyList<SpatialGridCell> cells = AgriculturalLightRules.GetSunlampCoverageCells(
+                0, 0, 2, 0, 0, 5, 5, 64);
+
+            bool hasMinusX = false;
+            bool hasMinusY = false;
+            for (int i = 0; i < cells.Count; i++)
+            {
+                if (cells[i].X < 0) hasMinusX = true;
+                if (cells[i].Y < 0) hasMinusY = true;
+            }
+
+            AssertFalse(hasMinusX, "Cells at plot origin must not extend to negative X.");
+            AssertFalse(hasMinusY, "Cells at plot origin must not extend to negative Y.");
+            AssertEqual(9, cells.Count, "Sunlamp at (0,0) in 5x5 plot must have 9 cells (3 per layer, 3 layers).");
+
+            IReadOnlyList<SpatialGridCell> cornerCells = AgriculturalLightRules.GetSunlampCoverageCells(
+                4, 4, 2, 0, 0, 5, 5, 64);
+            AssertEqual(9, cornerCells.Count, "Sunlamp at (4,4) in 5x5 plot must have 9 cells (3 per layer, 3 layers).");
+        }
+
+        private static void AgriculturalLightCompletedBuildingOccludesFarmAbove()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:occlusion",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState occluder = new BuildingInstanceState
+            {
+                BuildingId = "building:test:occluder",
+                PlotId = "plot:test:occlusion",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+
+            bool occluded = AgriculturalLightRules.IsPhysicallyOccluded(farm, new[] { occluder });
+
+            AssertTrue(occluded, "Completed building at BaseLayer=1 must occlude farm at BaseLayer=0 with height=1.");
+        }
+
+        private static void AgriculturalLightDestroyedBuildingDoesNotOcclude()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:destroyed",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState destroyed = new BuildingInstanceState
+            {
+                BuildingId = "building:test:destroyed",
+                PlotId = "plot:test:destroyed",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = true,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+
+            bool occluded = AgriculturalLightRules.IsPhysicallyOccluded(farm, new[] { destroyed });
+
+            AssertFalse(occluded, "Destroyed building must not occlude farm.");
+        }
+
+        private static void AgriculturalLightGraceBuildingStillOccludes()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:grace",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState grace = new BuildingInstanceState
+            {
+                BuildingId = "building:test:grace",
+                PlotId = "plot:test:grace",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Grace
+            };
+
+            bool occluded = AgriculturalLightRules.IsPhysicallyOccluded(farm, new[] { grace });
+
+            AssertTrue(occluded, "Grace-status building must still occlude farm.");
+        }
+
+        private static void AgriculturalLightDisabledBuildingStillOccludes()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:disabled",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState disabled = new BuildingInstanceState
+            {
+                BuildingId = "building:test:disabled",
+                PlotId = "plot:test:disabled",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Disabled
+            };
+
+            bool occluded = AgriculturalLightRules.IsPhysicallyOccluded(farm, new[] { disabled });
+
+            AssertTrue(occluded, "Disabled-status building must still occlude farm.");
+        }
+
+        private static void AgriculturalLightConstructionTaskDoesNotOcclude()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:construction",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+
+            bool occluded = AgriculturalLightRules.IsPhysicallyOccluded(farm, Array.Empty<BuildingInstanceState>());
+
+            AssertFalse(occluded, "Construction task must not occlude farm (not passed as buildings).");
+        }
+
+        private static void AgriculturalLightOccludedFarmRecoversWithActiveSunlampCoverage()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:sunlamp_recover",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState occluder = new BuildingInstanceState
+            {
+                BuildingId = "building:test:above",
+                PlotId = "plot:test:sunlamp_recover",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+            BuildingInstanceState sunlamp = new BuildingInstanceState
+            {
+                BuildingId = "building:test:sunlamp",
+                PlotId = "plot:test:sunlamp_recover",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 2,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+
+            bool hasLight = AgriculturalLightRules.HasRequiredLight(
+                farm, new[] { occluder }, new[] { sunlamp }, 0, 0, 20, 20, 64);
+
+            AssertTrue(hasLight, "Occluded farm with full active sunlamp coverage must have light.");
+        }
+
+        private static void AgriculturalLightOccludedFarmWithoutActiveSunlampHasNoLight()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:no_sunlamp",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState occluder = new BuildingInstanceState
+            {
+                BuildingId = "building:test:blocker",
+                PlotId = "plot:test:no_sunlamp",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+
+            bool hasLight = AgriculturalLightRules.HasRequiredLight(
+                farm, new[] { occluder }, Array.Empty<BuildingInstanceState>(),
+                0, 0, 20, 20, 64);
+
+            AssertFalse(hasLight, "Occluded farm without any active sunlamp must have no light.");
+        }
+
+        private static void AgriculturalLightSunlampInDifferentPlotDoesNotCover()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:farm_plot",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState occluder = new BuildingInstanceState
+            {
+                BuildingId = "building:test:blocker",
+                PlotId = "plot:test:farm_plot",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+            BuildingInstanceState sunlampOtherPlot = new BuildingInstanceState
+            {
+                BuildingId = "building:test:sunlamp_other",
+                PlotId = "plot:test:other_plot",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 5,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+
+            bool hasLight = AgriculturalLightRules.HasRequiredLight(
+                farm, new[] { occluder }, new[] { sunlampOtherPlot },
+                0, 0, 20, 20, 64);
+
+            AssertFalse(hasLight, "Sunlamp in different plot must not provide coverage.");
+        }
+
+        private static void AgriculturalLightOverlappingMultipleSunlampsDoNotDuplicate()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:overlap",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState occluder = new BuildingInstanceState
+            {
+                BuildingId = "building:test:blocker",
+                PlotId = "plot:test:overlap",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 2,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+            BuildingInstanceState sunlampA = new BuildingInstanceState
+            {
+                BuildingId = "building:test:sunlamp_a",
+                PlotId = "plot:test:overlap",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 2,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+            BuildingInstanceState sunlampB = new BuildingInstanceState
+            {
+                BuildingId = "building:test:sunlamp_b",
+                PlotId = "plot:test:overlap",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 3,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+
+            bool hasLight = AgriculturalLightRules.HasRequiredLight(
+                farm, new[] { occluder }, new[] { sunlampA, sunlampB },
+                0, 0, 20, 20, 64);
+
+            AssertTrue(hasLight, "Two overlapping sunlamps providing full coverage must still result in light (boolean only).");
+        }
+
+        private static void AgriculturalLightMultiCellFarmPartialCoverageStillNoLight()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:multi_partial",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 2, PlacedDepth = 2, PlacedHeight = 1
+            };
+            BuildingInstanceState occluder = new BuildingInstanceState
+            {
+                BuildingId = "building:test:wide_blocker",
+                PlotId = "plot:test:multi_partial",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 2, PlacedDepth = 2, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+            BuildingInstanceState sunlamp = new BuildingInstanceState
+            {
+                BuildingId = "building:test:partial_lamp",
+                PlotId = "plot:test:multi_partial",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 2,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+
+            bool hasLight = AgriculturalLightRules.HasRequiredLight(
+                farm, new[] { occluder }, new[] { sunlamp },
+                0, 0, 20, 20, 64);
+
+            AssertFalse(hasLight, "Multi-cell farm with only partial coverage must have no light.");
+        }
+
+        private static void AgriculturalLightMultiCellFarmFullCoverageHasLight()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:multi_full",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 2, PlacedDepth = 2, PlacedHeight = 1
+            };
+            BuildingInstanceState occluder = new BuildingInstanceState
+            {
+                BuildingId = "building:test:wide_blocker2",
+                PlotId = "plot:test:multi_full",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 2, PlacedDepth = 2, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+            BuildingInstanceState sunlampA = new BuildingInstanceState
+            {
+                BuildingId = "building:test:lamp_a",
+                PlotId = "plot:test:multi_full",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 2,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+            BuildingInstanceState sunlampB = new BuildingInstanceState
+            {
+                BuildingId = "building:test:lamp_b",
+                PlotId = "plot:test:multi_full",
+                AnchorX = 6, AnchorY = 5, BaseLayer = 2,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+            BuildingInstanceState sunlampC = new BuildingInstanceState
+            {
+                BuildingId = "building:test:lamp_c",
+                PlotId = "plot:test:multi_full",
+                AnchorX = 5, AnchorY = 6, BaseLayer = 2,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+            BuildingInstanceState sunlampD = new BuildingInstanceState
+            {
+                BuildingId = "building:test:lamp_d",
+                PlotId = "plot:test:multi_full",
+                AnchorX = 6, AnchorY = 6, BaseLayer = 2,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+
+            bool hasLight = AgriculturalLightRules.HasRequiredLight(
+                farm,
+                new[] { occluder },
+                new[] { sunlampA, sunlampB, sunlampC, sunlampD },
+                0, 0, 20, 20, 64);
+
+            AssertTrue(hasLight, "Multi-cell farm with all cells covered by sunlamps must have light.");
+        }
+
+        private static void AgriculturalLightSunlampSelfOccludesButProvidesFullCoverageHasLight()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:farm",
+                PlotId = "plot:test:self_occlude",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState sunlamp = new BuildingInstanceState
+            {
+                BuildingId = "building:test:self_lamp",
+                PlotId = "plot:test:self_occlude",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+
+            bool hasLight = AgriculturalLightRules.HasRequiredLight(
+                farm,
+                new[] { sunlamp },
+                new[] { sunlamp },
+                0, 0, 20, 20, 64);
+
+            AssertTrue(hasLight, "Sunlamp that occludes farm but also provides full coverage must still result in light.");
+        }
+
+        private static void AgriculturalLightRotatedMultiCellFarmUsesAuthoritativeFootprint()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:rotated_farm",
+                PlotId = "plot:test:rotated",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 2, PlacedDepth = 1, PlacedHeight = 1,
+                RotationQuarterTurns = 1
+            };
+
+            IReadOnlyList<SpatialGridCell> cells = AgriculturalLightRules.GetFarmFootprintCells(farm);
+
+            AssertEqual(2, cells.Count, "2x1 farm must occupy exactly 2 cells.");
+            AssertTrue(cells.Contains(new SpatialGridCell(5, 5, 0)), "Rotated farm must include anchor cell (5,5,0).");
+            AssertTrue(cells.Contains(new SpatialGridCell(5, 6, 0)), "Quarter-turn rotation must swap width/depth, producing (5,6,0) instead of (6,5,0).");
+            AssertFalse(cells.Contains(new SpatialGridCell(6, 5, 0)), "Rotated 2x1 farm must NOT occupy (6,5,0) — that would be unrotated.");
+        }
+
+        private static void AgriculturalLightExcludesFarmItselfByBuildingId()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:self_id_farm",
+                PlotId = "plot:test:self_id",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+
+            bool occluded = AgriculturalLightRules.IsPhysicallyOccluded(
+                farm,
+                new[] { farm });
+
+            AssertFalse(occluded, "Farm must not be occluded by itself — BuildingId exclusion must work.");
+        }
+
+        private static void AgriculturalLightRejectsNullBuildingEntryExplicitly()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:null_entry_farm",
+                PlotId = "plot:test:null_entry",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+
+            AssertThrows<ArgumentException>(
+                () => AgriculturalLightRules.IsPhysicallyOccluded(
+                    farm,
+                    new BuildingInstanceState[] { null }),
+                "Null building entry must throw ArgumentException, not NullReferenceException.");
+        }
+
+        private static void AgriculturalLightRejectsNullActiveSunlampEntryExplicitly()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:null_lamp_farm",
+                PlotId = "plot:test:null_lamp",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+
+            AssertThrows<ArgumentException>(
+                () => AgriculturalLightRules.HasFullActiveSunlampCoverage(
+                    farm,
+                    new BuildingInstanceState[] { null },
+                    0, 0, 20, 20, 64),
+                "Null active sunlamp entry must throw ArgumentException, not NullReferenceException.");
+        }
+
+        private static void AgriculturalLightCoverageAvoidsCoordinateOverflowAtPlotMaximum()
+        {
+            IReadOnlyList<SpatialGridCell> cells = AgriculturalLightRules.GetSunlampCoverageCells(
+                int.MaxValue, int.MaxValue, 2,
+                int.MaxValue, int.MaxValue,
+                1, 1, 64);
+
+            // Only the center cell (0,0 offset) falls inside the 1x1 plot at int.MaxValue.
+            // 3 layers: baseLayer=2, baseLayer-1=1, baseLayer-2=0.
+            AssertEqual(3, cells.Count, "Only center cell within plot should be kept across 3 layers.");
+            AssertEqual(int.MaxValue, cells[0].X, "First cell X must be int.MaxValue without overflow.");
+            AssertEqual(int.MaxValue, cells[0].Y, "First cell Y must be int.MaxValue without overflow.");
+            AssertEqual(2, cells[0].Layer, "First cell layer must be baseLayer.");
+            AssertEqual(int.MaxValue, cells[1].X, "Second cell X must be int.MaxValue without overflow.");
+            AssertEqual(int.MaxValue, cells[1].Y, "Second cell Y must be int.MaxValue without overflow.");
+            AssertEqual(1, cells[1].Layer, "Second cell layer must be baseLayer-1.");
+            AssertEqual(int.MaxValue, cells[2].X, "Third cell X must be int.MaxValue without overflow.");
+            AssertEqual(int.MaxValue, cells[2].Y, "Third cell Y must be int.MaxValue without overflow.");
+            AssertEqual(0, cells[2].Layer, "Third cell layer must be baseLayer-2.");
+        }
+
+        private static void AgriculturalLightRejectsTrailingNullBuildingAfterOccluder()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:null_after_occluder_farm",
+                PlotId = "plot:test:null_after_occluder",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState occluder = new BuildingInstanceState
+            {
+                BuildingId = "building:test:real_occluder",
+                PlotId = "plot:test:null_after_occluder",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 1,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false,
+                StructuralStatus = BuildingStructuralStatuses.Normal
+            };
+
+            AssertThrows<ArgumentException>(
+                () => AgriculturalLightRules.IsPhysicallyOccluded(
+                    farm,
+                    new BuildingInstanceState[] { occluder, null }),
+                "Trailing null building must throw ArgumentException even when first building occludes.");
+        }
+
+        private static void AgriculturalLightRejectsTrailingNullSunlampAfterCoverage()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:null_after_coverage_farm",
+                PlotId = "plot:test:null_after_coverage",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+            BuildingInstanceState sunlamp = new BuildingInstanceState
+            {
+                BuildingId = "building:test:valid_lamp",
+                PlotId = "plot:test:null_after_coverage",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 2,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1,
+                IsDestroyed = false
+            };
+
+            AssertThrows<ArgumentException>(
+                () => AgriculturalLightRules.HasFullActiveSunlampCoverage(
+                    farm,
+                    new BuildingInstanceState[] { sunlamp, null },
+                    0, 0, 20, 20, 64),
+                "Trailing null sunlamp must throw ArgumentException even when first lamp provides full coverage.");
+        }
+
+        private static void AgriculturalLightFinalQueryValidatesSunlampsBeforeDaylightShortCircuit()
+        {
+            BuildingInstanceState farm = new BuildingInstanceState
+            {
+                BuildingId = "building:test:validate_before_shortcircuit",
+                PlotId = "plot:test:validate_before_shortcircuit",
+                AnchorX = 5, AnchorY = 5, BaseLayer = 0,
+                PlacedWidth = 1, PlacedDepth = 1, PlacedHeight = 1
+            };
+
+            AssertThrows<ArgumentException>(
+                () => AgriculturalLightRules.HasRequiredLight(
+                    farm,
+                    Array.Empty<BuildingInstanceState>(),
+                    new BuildingInstanceState[] { null },
+                    0, 0, 20, 20, 64),
+                "HasRequiredLight must validate sunlamps even when farm is not occluded.");
         }
 
         private static void BuildAndComplete(LocalGameSession session, long sequence, string commandSuffix, string definitionId, int layer)
