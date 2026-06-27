@@ -84,6 +84,13 @@ namespace WenMingBlocks.Runtime.Authority
                     continue;
                 }
 
+                if (StringComparer.Ordinal.Equals(building.DefinitionId, CoreBuildingIds.Farm) &&
+                    !HasRequiredAgriculturalLight(context.State, building))
+                {
+                    runtime.Status = ContinuousProductionStatuses.PausedNoLight;
+                    continue;
+                }
+
                 int efficiencyBasisPoints = WasteEffectRules.ResolveWorkEfficiencyBasisPoints(context.State);
                 long rateUnitsPerTick = checked((long)workerCount * definition.OutputPerWorkerPerDay);
                 int freeCapacity = GetOutputCapacity(context.State, building, definition.OutputResourceId);
@@ -182,6 +189,31 @@ namespace WenMingBlocks.Runtime.Authority
             }
 
             return events;
+        }
+
+        private static bool HasRequiredAgriculturalLight(GameState state, BuildingInstanceState farm)
+        {
+            if (state == null) throw new ArgumentNullException(nameof(state));
+            if (farm == null) throw new ArgumentNullException(nameof(farm));
+            if (!state.World.Plots.TryGetValue(farm.PlotId, out PlotState plot) || plot == null)
+            {
+                return true;
+            }
+
+            IEnumerable<BuildingInstanceState> activeSunlamps = state.Buildings.Instances.Values
+                .Where(instance => instance != null &&
+                    StringComparer.Ordinal.Equals(instance.DefinitionId, CoreBuildingIds.Sunlamp) &&
+                    BuildingOperationalRules.IsOperational(instance));
+
+            return AgriculturalLightRules.HasRequiredLight(
+                farm,
+                state.Buildings.Instances.Values,
+                activeSunlamps,
+                plot.X,
+                plot.Y,
+                plot.Width,
+                plot.Depth,
+                plot.MaxStackLayers);
         }
 
         public static ValidationResult ValidateDemolition(GameState state, string buildingId)

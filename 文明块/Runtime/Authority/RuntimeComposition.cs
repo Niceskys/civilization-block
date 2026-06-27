@@ -105,6 +105,16 @@ namespace WenMingBlocks.Runtime.Authority
             });
             registry.RegisterBuilding(new BuildingDefinition
             {
+                DefinitionId = CoreBuildingIds.Sunlamp,
+                Category = "utility",
+                MaxDurability = 400,
+                CarryCapacity = 5,
+                Weight = 5,
+                ConstructionTicks = GameTime.TicksPerGameDay,
+                BuildCost = Cost((CoreResourceIds.Stone, 10), (CoreResourceIds.IronIngot, 5))
+            });
+            registry.RegisterBuilding(new BuildingDefinition
+            {
                 DefinitionId = CoreBuildingIds.ExcavationSite,
                 Category = "production",
                 MaxDurability = 500,
@@ -327,6 +337,7 @@ namespace WenMingBlocks.Runtime.Authority
         public const string Farm = "building:core:farm";
         public const string Well = "building:core:well";
         public const string TreeFarm = "building:core:tree_farm";
+        public const string Sunlamp = "building:core:sunlamp";
         public const string ExcavationSite = "building:core:excavation_site";
         public const string Smelter = "building:core:smelter";
         public const string Warehouse = "building:core:warehouse";

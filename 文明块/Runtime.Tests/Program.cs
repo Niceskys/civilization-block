@@ -56,6 +56,10 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Remote warehouse capacity uses server authority", RemoteWarehouseCapacityUsesServerAuthority);
             Run("Continuous production yields exact daily output", ContinuousProductionYieldsExactDailyOutput);
             Run("Farm continuous production consumes irrigation", FarmContinuousProductionConsumesIrrigation);
+            Run("Farm light occlusion pauses continuous production", FarmLightOcclusionPausesContinuousProduction);
+            Run("Farm light sunlamp restores continuous production", FarmLightSunlampRestoresContinuousProduction);
+            Run("Farm light destroyed sunlamp does not restore production", FarmLightDestroyedSunlampDoesNotRestoreProduction);
+            Run("Agricultural light only affects farm production", AgriculturalLightOnlyAffectsFarmProduction);
             Run("Continuous production pauses without conditions", ContinuousProductionPausesWithoutConditions);
             Run("Continuous production preserves pending output", ContinuousProductionPreservesPendingOutput);
             Run("Continuous production survives save round trip", ContinuousProductionSurvivesSaveRoundTrip);
@@ -64,6 +68,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Excavation byproduct survives save round trip", ExcavationByproductSurvivesSaveRoundTrip);
             Run("Save migration initializes continuous byproducts", SaveMigrationInitializesContinuousByproducts);
             Run("Remote continuous production uses server authority", RemoteContinuousProductionUsesServerAuthority);
+            Run("Remote farm light uses server authority", RemoteFarmLightUsesServerAuthority);
             Run("Definition sealing rejects broken cross references", DefinitionSealingRejectsBrokenReferences);
             Run("Definition sealing accepts complete content module", DefinitionSealingAcceptsCompleteModule);
             Run("Runtime composition registers every core command system", RuntimeCompositionRegistersCoreSystems);
@@ -730,14 +735,18 @@ namespace WenMingBlocks.Runtime.Tests
             AssertCoreBuilding(definitions, CoreBuildingIds.Farm, 500, 3, 1, 2, 20, GameTime.TicksPerGameDay);
             AssertCoreBuilding(definitions, CoreBuildingIds.Well, 500, 3, 2, 2, 20, GameTime.TicksPerGameDay);
             AssertCoreBuilding(definitions, CoreBuildingIds.TreeFarm, 500, 3, 1, 2, 20, GameTime.TicksPerGameDay);
+            AssertCoreBuilding(definitions, CoreBuildingIds.Sunlamp, 400, 5, 5, 0, 0, GameTime.TicksPerGameDay);
 
             definitions.TryGetBuilding(CoreBuildingIds.House, out BuildingDefinition house);
             definitions.TryGetBuilding(CoreBuildingIds.Farm, out BuildingDefinition farm);
+            definitions.TryGetBuilding(CoreBuildingIds.Sunlamp, out BuildingDefinition sunlamp);
             AssertTrue(house.IsHome && !house.IsBasicProduction, "House must own the independent home bonus.");
             AssertTrue(farm.IsBasicProduction && !farm.IsHome, "Farm must share the basic-production bonus.");
             AssertEqual(10, house.BuildCost[CoreResourceIds.Wood], "House wood cost must match 6.1.");
             AssertEqual(5, farm.BuildCost[CoreResourceIds.Wood], "Farm wood cost must match 6.1.");
             AssertEqual(1, farm.BuildCost[CoreResourceIds.Water], "Farm water cost must match 6.1.");
+            AssertEqual(10, sunlamp.BuildCost[CoreResourceIds.Stone], "Sunlamp stone cost must match 6.1.");
+            AssertEqual(5, sunlamp.BuildCost[CoreResourceIds.IronIngot], "Sunlamp iron-ingot cost must match 6.1.");
         }
 
         private static void CoreContentRegistersEmergencyCharcoal()
@@ -1032,6 +1041,84 @@ namespace WenMingBlocks.Runtime.Tests
                 "A full operating day must consume its irrigation coverage.");
         }
 
+        private static void FarmLightOcclusionPausesContinuousProduction()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            ExtendContinuousPlotForLight(simulation);
+            AddLightOccluder(simulation);
+
+            simulation.Tick(GameTime.TicksPerGameDay);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[farm.BuildingId];
+            AssertEqual(ContinuousProductionStatuses.PausedNoLight, runtime.Status,
+                "Occluded farm without sunlamp coverage must pause for missing light.");
+            AssertEqual(0, GetLocalAmount(farm, CoreResourceIds.Food),
+                "Missing light must block farm output.");
+            AssertEqual(2, simulation.State.Resources.Items[CoreResourceIds.Water].Amount,
+                "Missing light must pause before irrigation is consumed.");
+            AssertEqual(0L, runtime.ProgressUnits, "Missing light must preserve production progress.");
+        }
+
+        private static void FarmLightSunlampRestoresContinuousProduction()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            ExtendContinuousPlotForLight(simulation);
+            AddLightOccluder(simulation);
+            AddSunlamp(simulation, false);
+
+            simulation.Tick(GameTime.TicksPerGameDay);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[farm.BuildingId];
+            AssertEqual(ContinuousProductionStatuses.Running, runtime.Status,
+                "Covered farm must resume normal continuous production.");
+            AssertEqual(8, farm.LocalInventory[CoreResourceIds.Food].Amount,
+                "Sunlamp-covered farm must produce normally.");
+            AssertEqual(1, simulation.State.Resources.Items[CoreResourceIds.Water].Amount,
+                "Running farm must consume one irrigation water per operating day.");
+        }
+
+        private static void FarmLightDestroyedSunlampDoesNotRestoreProduction()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            ExtendContinuousPlotForLight(simulation);
+            AddLightOccluder(simulation);
+            AddSunlamp(simulation, true);
+
+            simulation.Tick(GameTime.TicksPerGameDay);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[farm.BuildingId];
+            AssertEqual(ContinuousProductionStatuses.PausedNoLight, runtime.Status,
+                "Destroyed sunlamp must not restore farm light.");
+            AssertEqual(0, GetLocalAmount(farm, CoreResourceIds.Food),
+                "Destroyed sunlamp must not allow occluded farm output.");
+        }
+
+        private static void AgriculturalLightOnlyAffectsFarmProduction()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.TreeFarm, 1, 20, 100, 0, 0);
+            ExtendContinuousPlotForLight(simulation);
+            AddLightOccluder(simulation);
+
+            simulation.Tick(GameTime.TicksPerGameDay);
+
+            BuildingInstanceState treeFarm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[treeFarm.BuildingId];
+            AssertEqual(ContinuousProductionStatuses.Running, runtime.Status,
+                "Agricultural light gating must not affect non-farm continuous production.");
+            AssertEqual(3, treeFarm.LocalInventory[CoreResourceIds.Wood].Amount,
+                "Tree farm must keep producing even when physically occluded.");
+        }
+
         private static void ContinuousProductionPausesWithoutConditions()
         {
             Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 0);
@@ -1230,6 +1317,33 @@ namespace WenMingBlocks.Runtime.Tests
                 "Remote must receive server-produced output.");
             AssertEqual(server.CurrentState.SimulationTick, remote.CurrentState.SimulationTick,
                 "Remote continuous production must use authoritative server time.");
+        }
+
+        private static void RemoteFarmLightUsesServerAuthority()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            ExtendContinuousPlotForLight(simulation);
+            AddLightOccluder(simulation);
+            ServerGameSession server = new ServerGameSession(simulation, new[] { "player:test:continuous" });
+            RemoteGameSession remote = CreateRemoteSession(server);
+
+            remote.Tick(GameTime.TicksPerGameDay);
+            AssertTrue(!remote.CurrentState.ContinuousProduction.Buildings.ContainsKey("building:test:continuous"),
+                "Remote tick must not advance farm light production locally.");
+            server.Tick(GameTime.TicksPerGameDay);
+            remote.Tick(1);
+
+            BuildingInstanceState remoteFarm =
+                remote.CurrentState.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState remoteRuntime =
+                remote.CurrentState.ContinuousProduction.Buildings[remoteFarm.BuildingId];
+            AssertEqual(0, GetLocalAmount(remoteFarm, CoreResourceIds.Food),
+                "Remote must receive the server-authoritative no-light production result.");
+            AssertEqual(ContinuousProductionStatuses.PausedNoLight, remoteRuntime.Status,
+                "Remote must synchronize the server-authoritative no-light status.");
+            AssertEqual(server.CurrentState.SimulationTick, remote.CurrentState.SimulationTick,
+                "Remote farm light synchronization must use authoritative server time.");
         }
 
         private static void DefinitionSealingRejectsBrokenReferences()
@@ -4894,6 +5008,58 @@ namespace WenMingBlocks.Runtime.Tests
             }
 
             return RuntimeComposition.CreateSimulation(state, definitions);
+        }
+
+        private static void ExtendContinuousPlotForLight(Simulation simulation)
+        {
+            PlotState plot = simulation.State.World.Plots["plot:test:continuous"];
+            plot.Width = 3;
+            plot.Depth = 3;
+            plot.MaxStackLayers = 3;
+        }
+
+        private static void AddLightOccluder(Simulation simulation)
+        {
+            BuildingInstanceState occluder = CreateBuildingStateWithDefinition(
+                "building:test:light_occluder",
+                CoreBuildingIds.House,
+                "plot:test:continuous",
+                0,
+                0,
+                1,
+                1,
+                1,
+                1);
+            occluder.Durability = 400;
+            occluder.StructuralStatus = BuildingStructuralStatuses.Normal;
+            simulation.State.Buildings.Instances[occluder.BuildingId] = occluder;
+        }
+
+        private static void AddSunlamp(Simulation simulation, bool destroyed)
+        {
+            BuildingInstanceState sunlamp = CreateBuildingStateWithDefinition(
+                "building:test:sunlamp",
+                CoreBuildingIds.Sunlamp,
+                "plot:test:continuous",
+                1,
+                0,
+                0,
+                1,
+                1,
+                1);
+            sunlamp.Durability = destroyed ? 0 : 400;
+            sunlamp.IsDestroyed = destroyed;
+            sunlamp.StructuralStatus = destroyed
+                ? BuildingStructuralStatuses.Disabled
+                : BuildingStructuralStatuses.Normal;
+            simulation.State.Buildings.Instances[sunlamp.BuildingId] = sunlamp;
+        }
+
+        private static int GetLocalAmount(BuildingInstanceState building, string resourceId)
+        {
+            return building.LocalInventory.TryGetValue(resourceId, out LocalResourceStack stack)
+                ? stack.Amount
+                : 0;
         }
 
         private static Simulation CreateFertilizerSimulation(int workerCount)

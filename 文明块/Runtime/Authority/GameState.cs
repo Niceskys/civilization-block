@@ -281,6 +281,7 @@ namespace WenMingBlocks.Runtime.Authority
         public const string Running = "running";
         public const string PausedBuilding = "paused_building";
         public const string PausedNoWorkers = "paused_no_workers";
+        public const string PausedNoLight = "paused_no_light";
         public const string PausedInput = "paused_input";
         public const string OutputPending = "output_pending";
 
@@ -289,6 +290,7 @@ namespace WenMingBlocks.Runtime.Authority
             return StringComparer.Ordinal.Equals(status, Running) ||
                    StringComparer.Ordinal.Equals(status, PausedBuilding) ||
                    StringComparer.Ordinal.Equals(status, PausedNoWorkers) ||
+                   StringComparer.Ordinal.Equals(status, PausedNoLight) ||
                    StringComparer.Ordinal.Equals(status, PausedInput) ||
                    StringComparer.Ordinal.Equals(status, OutputPending);
         }
