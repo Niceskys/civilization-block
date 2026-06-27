@@ -59,6 +59,8 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Farm light occlusion pauses continuous production", FarmLightOcclusionPausesContinuousProduction);
             Run("Farm light sunlamp restores continuous production", FarmLightSunlampRestoresContinuousProduction);
             Run("Farm light destroyed sunlamp does not restore production", FarmLightDestroyedSunlampDoesNotRestoreProduction);
+            Run("Farm light paused status survives save round trip", FarmLightPausedStatusSurvivesSaveRoundTrip);
+            Run("Farm light restoration does not backfill paused ticks", FarmLightRestorationDoesNotBackfillPausedTicks);
             Run("Agricultural light only affects farm production", AgriculturalLightOnlyAffectsFarmProduction);
             Run("Continuous production pauses without conditions", ContinuousProductionPausesWithoutConditions);
             Run("Continuous production preserves pending output", ContinuousProductionPreservesPendingOutput);
@@ -1100,6 +1102,56 @@ namespace WenMingBlocks.Runtime.Tests
                 "Destroyed sunlamp must not restore farm light.");
             AssertEqual(0, GetLocalAmount(farm, CoreResourceIds.Food),
                 "Destroyed sunlamp must not allow occluded farm output.");
+        }
+
+        private static void FarmLightPausedStatusSurvivesSaveRoundTrip()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            ExtendContinuousPlotForLight(simulation);
+            AddLightOccluder(simulation);
+
+            simulation.Tick(GameTime.TicksPerGameDay);
+
+            SaveSystem saves = new SaveSystem();
+            GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
+            ContinuousProductionBuildingState runtime =
+                loaded.ContinuousProduction.Buildings["building:test:continuous"];
+
+            AssertEqual(ContinuousProductionStatuses.PausedNoLight, runtime.Status,
+                "No-light continuous-production status must survive save load.");
+            AssertTrue(ContinuousProductionStatuses.IsKnown(runtime.Status),
+                "No-light status must remain a known continuous-production state after save load.");
+            AssertEqual(0L, runtime.ProgressUnits,
+                "No-light save round trip must not invent farm progress.");
+            AssertEqual(2, loaded.Resources.Items[CoreResourceIds.Water].Amount,
+                "No-light save round trip must preserve unconsumed irrigation water.");
+        }
+
+        private static void FarmLightRestorationDoesNotBackfillPausedTicks()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 3);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 3;
+            ExtendContinuousPlotForLight(simulation);
+            AddLightOccluder(simulation);
+
+            simulation.Tick(GameTime.TicksPerGameDay);
+            AddSunlamp(simulation, false);
+            simulation.Tick(GameTime.TicksPerGameDay / 2);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[farm.BuildingId];
+            AssertEqual(4, GetLocalAmount(farm, CoreResourceIds.Food),
+                "Restored farm must produce only for ticks after light returns.");
+            AssertEqual(2, simulation.State.Resources.Items[CoreResourceIds.Water].Amount,
+                "Restored half-day production must consume one operating-day irrigation coverage.");
+            AssertEqual(GameTime.TicksPerGameDay / 2, runtime.InputCoverageTicks,
+                "Half-day after restore must leave the unused half-day irrigation coverage.");
+            AssertEqual(0L, runtime.ProgressUnits,
+                "Half-day production at two workers must complete four food without carrying paused progress.");
+            AssertEqual(ContinuousProductionStatuses.Running, runtime.Status,
+                "Farm must return to running after light is restored.");
         }
 
         private static void AgriculturalLightOnlyAffectsFarmProduction()
