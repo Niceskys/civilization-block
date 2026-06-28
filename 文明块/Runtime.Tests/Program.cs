@@ -76,6 +76,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Save migration initializes continuous byproducts", SaveMigrationInitializesContinuousByproducts);
             Run("Remote continuous production uses server authority", RemoteContinuousProductionUsesServerAuthority);
             Run("Remote farm light uses server authority", RemoteFarmLightUsesServerAuthority);
+            Run("Remote farm night light uses server authority", RemoteFarmNightLightUsesServerAuthority);
             Run("Definition sealing rejects broken cross references", DefinitionSealingRejectsBrokenReferences);
             Run("Definition sealing accepts complete content module", DefinitionSealingAcceptsCompleteModule);
             Run("Runtime composition registers every core command system", RuntimeCompositionRegistersCoreSystems);
@@ -1512,6 +1513,34 @@ namespace WenMingBlocks.Runtime.Tests
                 "Remote must synchronize the server-authoritative no-light status.");
             AssertEqual(server.CurrentState.SimulationTick, remote.CurrentState.SimulationTick,
                 "Remote farm light synchronization must use authoritative server time.");
+        }
+
+        private static void RemoteFarmNightLightUsesServerAuthority()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            simulation.State.SimulationTick = DayNightCycle.TicksPerHalfDay;
+            ServerGameSession server = new ServerGameSession(simulation, new[] { "player:test:continuous" });
+            RemoteGameSession remote = CreateRemoteSession(server);
+
+            remote.Tick(GameTime.TicksPerGameDay / 2);
+            AssertTrue(!remote.CurrentState.ContinuousProduction.Buildings.ContainsKey("building:test:continuous"),
+                "Remote tick must not advance night farm production locally.");
+            server.Tick(GameTime.TicksPerGameDay / 2);
+            remote.Tick(1);
+
+            BuildingInstanceState remoteFarm =
+                remote.CurrentState.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState remoteRuntime =
+                remote.CurrentState.ContinuousProduction.Buildings[remoteFarm.BuildingId];
+            AssertEqual(0, GetLocalAmount(remoteFarm, CoreResourceIds.Food),
+                "Remote must receive the server-authoritative night no-light result.");
+            AssertEqual(2, remote.CurrentState.Resources.Items[CoreResourceIds.Water].Amount,
+                "Remote must receive the server-authoritative night irrigation result.");
+            AssertEqual(ContinuousProductionStatuses.PausedNoLight, remoteRuntime.Status,
+                "Remote must synchronize the server-authoritative night no-light status.");
+            AssertEqual(server.CurrentState.SimulationTick, remote.CurrentState.SimulationTick,
+                "Remote farm night light synchronization must use authoritative server time.");
         }
 
         private static void DefinitionSealingRejectsBrokenReferences()
