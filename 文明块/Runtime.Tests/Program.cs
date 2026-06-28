@@ -201,6 +201,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Remote connector construction uses server authority", RemoteConnectorConstructionUsesServerAuthority);
             Run("State diagnostics reports unsupported structure", StateDiagnosticsReportsUnsupportedStructure);
             Run("State diagnostics reports structural overload", StateDiagnosticsReportsStructuralOverload);
+            Run("State diagnostics reports farm missing light", StateDiagnosticsReportsFarmMissingLight);
             Run("Remote preserves structural rejection code", RemotePreservesStructuralRejectionCode);
             Run("EventStream publishes event and triggers callback", EventStreamPublishesEventAndTriggersCallback);
             Run("Server session rejects unauthorized player", ServerSessionRejectsUnauthorizedPlayer);
@@ -4563,6 +4564,23 @@ namespace WenMingBlocks.Runtime.Tests
             IReadOnlyList<DiagnosticIssue> issues = StateDiagnostics.CheckInvariants(state, definitions);
 
             AssertTrue(issues.Any(issue => issue.Code == "structure.capacity.exceeded"), "Diagnostics must report overloaded support.");
+        }
+
+        private static void StateDiagnosticsReportsFarmMissingLight()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            ExtendContinuousPlotForLight(simulation);
+            AddLightOccluder(simulation);
+            simulation.Tick(GameTime.TicksPerGameDay);
+
+            IReadOnlyList<DiagnosticIssue> issues =
+                StateDiagnostics.CheckInvariants(simulation.State, RuntimeComposition.CreateDefinitions());
+
+            AssertTrue(issues.Any(issue =>
+                    issue.Code == "continuous_production.farm.no_light" &&
+                    issue.Severity == DiagnosticSeverity.Info),
+                "Diagnostics must expose farm no-light pauses as information.");
         }
 
         private static void RemotePreservesStructuralRejectionCode()

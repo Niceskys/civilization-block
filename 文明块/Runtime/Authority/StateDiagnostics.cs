@@ -345,10 +345,13 @@ namespace WenMingBlocks.Runtime.Authority
                 state.ContinuousProduction.Buildings)
             {
                 ContinuousProductionBuildingState runtime = pair.Value;
-                if (runtime == null || !StringComparer.Ordinal.Equals(pair.Key, runtime.BuildingId) ||
-                    !state.Buildings.Instances.TryGetValue(pair.Key, out BuildingInstanceState building) ||
-                    building == null || building.IsDestroyed ||
-                    !definitions.TryGetContinuousProduction(building.DefinitionId, out _) ||
+                bool hasBuilding = state.Buildings.Instances.TryGetValue(
+                    pair.Key, out BuildingInstanceState building);
+                bool hasDefinition = hasBuilding && building != null &&
+                    definitions.TryGetContinuousProduction(building.DefinitionId, out _);
+                bool invalid = runtime == null || !StringComparer.Ordinal.Equals(pair.Key, runtime.BuildingId) ||
+                    !hasBuilding || building == null || building.IsDestroyed ||
+                    !hasDefinition ||
                     runtime.ProgressUnits < 0 || runtime.ProgressUnits >= GameTime.TicksPerGameDay ||
                     runtime.EfficiencyRemainderBasisPointTicks < 0 ||
                     runtime.EfficiencyRemainderBasisPointTicks >= WasteEffectRules.BasisPointsPerWhole ||
@@ -364,10 +367,19 @@ namespace WenMingBlocks.Runtime.Authority
                     (runtime.PendingOutputAmount > 0 &&
                      !StringComparer.Ordinal.Equals(runtime.Status, ContinuousProductionStatuses.OutputPending)) ||
                     (runtime.AdditionalPendingOutputs.Values.Any(value => value > 0) &&
-                     !StringComparer.Ordinal.Equals(runtime.Status, ContinuousProductionStatuses.OutputPending)))
+                     !StringComparer.Ordinal.Equals(runtime.Status, ContinuousProductionStatuses.OutputPending));
+                if (invalid)
                 {
                     AddError(issues, "continuous_production.building.invalid",
                         $"Continuous production state {pair.Key} is invalid.");
+                    continue;
+                }
+
+                if (StringComparer.Ordinal.Equals(building.DefinitionId, CoreBuildingIds.Farm) &&
+                    StringComparer.Ordinal.Equals(runtime.Status, ContinuousProductionStatuses.PausedNoLight))
+                {
+                    AddInfo(issues, "continuous_production.farm.no_light",
+                        $"Farm {pair.Key} is paused because required agricultural light is missing.");
                 }
             }
         }
@@ -952,6 +964,11 @@ namespace WenMingBlocks.Runtime.Authority
         private static void AddWarning(List<DiagnosticIssue> issues, string code, string message)
         {
             issues.Add(new DiagnosticIssue { Severity = DiagnosticSeverity.Warning, Code = code, Message = message });
+        }
+
+        private static void AddInfo(List<DiagnosticIssue> issues, string code, string message)
+        {
+            issues.Add(new DiagnosticIssue { Severity = DiagnosticSeverity.Info, Code = code, Message = message });
         }
 
         private static string ToHex(byte[] bytes)
