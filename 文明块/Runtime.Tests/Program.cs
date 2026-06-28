@@ -64,6 +64,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Farm light restoration does not backfill paused ticks", FarmLightRestorationDoesNotBackfillPausedTicks);
             Run("Farm light night without sunlamp pauses continuous production", FarmLightNightWithoutSunlampPausesContinuousProduction);
             Run("Farm light day night split only produces daylight", FarmLightDayNightSplitOnlyProducesDaylight);
+            Run("Farm light night day split does not backfill night", FarmLightNightDaySplitDoesNotBackfillNight);
             Run("Farm light night sunlamp supports production", FarmLightNightSunlampSupportsProduction);
             Run("Agricultural light only affects farm production", AgriculturalLightOnlyAffectsFarmProduction);
             Run("Continuous production pauses without conditions", ContinuousProductionPausesWithoutConditions);
@@ -1223,6 +1224,27 @@ namespace WenMingBlocks.Runtime.Tests
                 "Only the daylight operating segment must consume irrigation coverage.");
             AssertEqual(GameTime.TicksPerGameDay / 2, runtime.InputCoverageTicks,
                 "Daylight half-day must leave unused irrigation coverage for later valid light.");
+        }
+
+        private static void FarmLightNightDaySplitDoesNotBackfillNight()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            simulation.State.SimulationTick = DayNightCycle.TicksPerHalfDay;
+
+            simulation.Tick(GameTime.TicksPerGameDay);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[farm.BuildingId];
+            AssertEqual(ContinuousProductionStatuses.Running, runtime.Status,
+                "After crossing into daylight, the farm must resume without remaining paused.");
+            AssertEqual(4, GetLocalAmount(farm, CoreResourceIds.Food),
+                "Night-to-day split must only produce for the valid daylight half-day.");
+            AssertEqual(1, simulation.State.Resources.Items[CoreResourceIds.Water].Amount,
+                "Skipped night work must not consume irrigation.");
+            AssertEqual(GameTime.TicksPerGameDay / 2, runtime.InputCoverageTicks,
+                "Only the daylight half-day should consume prepaid irrigation coverage.");
         }
 
         private static void FarmLightNightSunlampSupportsProduction()
