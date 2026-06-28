@@ -28,6 +28,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("StateDiagnostics detects duplicate building layers", StateDiagnosticsDetectsDuplicateBuildingLayers);
             Run("StateDiagnostics handles empty state without exception", StateDiagnosticsHandlesEmptyState);
             Run("Game time resolves pause and speed deterministically", GameTimeResolvesPauseAndSpeedDeterministically);
+            Run("Day night cycle derives phase from simulation tick", DayNightCycleDerivesPhaseFromSimulationTick);
             Run("Difficulty profiles resolve structural timings", DifficultyProfilesResolveStructuralTimings);
             Run("Custom difficulty supports disable-only failure mode", CustomDifficultySupportsDisableOnlyMode);
             Run("Structural grace deadline follows simulation speed", StructuralGraceDeadlineFollowsSimulationSpeed);
@@ -501,6 +502,30 @@ namespace WenMingBlocks.Runtime.Tests
             AssertEqual(720L, GameTime.ResolveElapsedTicks(10, 1), "Normal speed must use the authoritative tick ratio.");
             AssertEqual(1440L, GameTime.ResolveElapsedTicks(10, 2), "Double speed must advance twice as many ticks.");
             AssertEqual(GameTime.TicksPerGameDay, GameTime.ResolveElapsedTicks(20 * 60, 1), "Twenty normal-speed real minutes must equal one game day.");
+        }
+
+        private static void DayNightCycleDerivesPhaseFromSimulationTick()
+        {
+            AssertEqual(GameTime.TicksPerGameDay / 2, DayNightCycle.TicksPerHalfDay,
+                "Day and night must each occupy half of one game day.");
+            AssertEqual(DayNightPhase.Day, DayNightCycle.GetPhase(0),
+                "Tick zero must be the start of daytime.");
+            AssertEqual(DayNightPhase.Day, DayNightCycle.GetPhase(DayNightCycle.TicksPerHalfDay - 1),
+                "The tick before the half-day boundary must still be daytime.");
+            AssertEqual(DayNightPhase.Night, DayNightCycle.GetPhase(DayNightCycle.TicksPerHalfDay),
+                "The half-day boundary must enter night.");
+            AssertEqual(DayNightPhase.Night, DayNightCycle.GetPhase(GameTime.TicksPerGameDay - 1),
+                "The tick before the next day must still be night.");
+            AssertEqual(DayNightPhase.Day, DayNightCycle.GetPhase(GameTime.TicksPerGameDay),
+                "The next day boundary must return to daytime.");
+            AssertEqual(DayNightPhase.Night,
+                DayNightCycle.GetPhase(GameTime.TicksPerGameDay + DayNightCycle.TicksPerHalfDay + 7),
+                "Later days must derive the phase from tick modulo one game day.");
+            AssertEqual(DayNightPhase.Day, DayNightCycle.GetPhase(GameTime.ResolveElapsedTicks(100, 0)),
+                "Paused elapsed time must not move the phase.");
+            AssertThrows<ArgumentOutOfRangeException>(
+                () => DayNightCycle.GetPhase(-1),
+                "Negative simulation ticks must be rejected.");
         }
 
         private static void DifficultyProfilesResolveStructuralTimings()

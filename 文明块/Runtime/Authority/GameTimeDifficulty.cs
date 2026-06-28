@@ -46,6 +46,34 @@ namespace WenMingBlocks.Runtime.Authority
         }
     }
 
+    public enum DayNightPhase
+    {
+        Day,
+        Night
+    }
+
+    public static class DayNightCycle
+    {
+        public const long TicksPerHalfDay = GameTime.TicksPerGameDay / 2;
+
+        public static DayNightPhase GetPhase(long simulationTick)
+        {
+            return GetTickWithinDay(simulationTick) < TicksPerHalfDay
+                ? DayNightPhase.Day
+                : DayNightPhase.Night;
+        }
+
+        public static long GetTickWithinDay(long simulationTick)
+        {
+            if (simulationTick < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(simulationTick));
+            }
+
+            return simulationTick % GameTime.TicksPerGameDay;
+        }
+    }
+
     public static class DifficultyIds
     {
         public const string Easy = "difficulty:core:easy";
