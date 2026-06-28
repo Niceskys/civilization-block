@@ -62,6 +62,9 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Farm light destroyed sunlamp does not restore production", FarmLightDestroyedSunlampDoesNotRestoreProduction);
             Run("Farm light paused status survives save round trip", FarmLightPausedStatusSurvivesSaveRoundTrip);
             Run("Farm light restoration does not backfill paused ticks", FarmLightRestorationDoesNotBackfillPausedTicks);
+            Run("Farm light night without sunlamp pauses continuous production", FarmLightNightWithoutSunlampPausesContinuousProduction);
+            Run("Farm light day night split only produces daylight", FarmLightDayNightSplitOnlyProducesDaylight);
+            Run("Farm light night sunlamp supports production", FarmLightNightSunlampSupportsProduction);
             Run("Agricultural light only affects farm production", AgriculturalLightOnlyAffectsFarmProduction);
             Run("Continuous production pauses without conditions", ContinuousProductionPausesWithoutConditions);
             Run("Continuous production preserves pending output", ContinuousProductionPreservesPendingOutput);
@@ -1058,6 +1061,8 @@ namespace WenMingBlocks.Runtime.Tests
         {
             Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
             simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false);
             simulation.Tick(GameTime.TicksPerGameDay);
 
             BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
@@ -1178,6 +1183,69 @@ namespace WenMingBlocks.Runtime.Tests
                 "Half-day production at two workers must complete four food without carrying paused progress.");
             AssertEqual(ContinuousProductionStatuses.Running, runtime.Status,
                 "Farm must return to running after light is restored.");
+        }
+
+        private static void FarmLightNightWithoutSunlampPausesContinuousProduction()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            simulation.State.SimulationTick = DayNightCycle.TicksPerHalfDay;
+
+            simulation.Tick(GameTime.TicksPerGameDay / 4);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[farm.BuildingId];
+            AssertEqual(ContinuousProductionStatuses.PausedNoLight, runtime.Status,
+                "Night farm without sunlamp coverage must pause for missing light.");
+            AssertEqual(0, GetLocalAmount(farm, CoreResourceIds.Food),
+                "Night missing light must block farm output.");
+            AssertEqual(2, simulation.State.Resources.Items[CoreResourceIds.Water].Amount,
+                "Night missing light must not consume irrigation.");
+            AssertEqual(0L, runtime.ProgressUnits, "Night missing light must not advance production progress.");
+        }
+
+        private static void FarmLightDayNightSplitOnlyProducesDaylight()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+
+            simulation.Tick(GameTime.TicksPerGameDay);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[farm.BuildingId];
+            AssertEqual(ContinuousProductionStatuses.PausedNoLight, runtime.Status,
+                "A day that ends with unlit night work must leave the farm paused for missing light.");
+            AssertEqual(4, GetLocalAmount(farm, CoreResourceIds.Food),
+                "Unlit night must not backfill the daylight half-day output.");
+            AssertEqual(1, simulation.State.Resources.Items[CoreResourceIds.Water].Amount,
+                "Only the daylight operating segment must consume irrigation coverage.");
+            AssertEqual(GameTime.TicksPerGameDay / 2, runtime.InputCoverageTicks,
+                "Daylight half-day must leave unused irrigation coverage for later valid light.");
+        }
+
+        private static void FarmLightNightSunlampSupportsProduction()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            simulation.State.SimulationTick = DayNightCycle.TicksPerHalfDay;
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false);
+
+            simulation.Tick(GameTime.TicksPerGameDay / 2);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[farm.BuildingId];
+            AssertEqual(ContinuousProductionStatuses.Running, runtime.Status,
+                "Night farm with full sunlamp coverage must keep running.");
+            AssertEqual(4, GetLocalAmount(farm, CoreResourceIds.Food),
+                "Sunlamp-covered night farm must produce for the valid half-day segment.");
+            AssertEqual(1, simulation.State.Resources.Items[CoreResourceIds.Water].Amount,
+                "Sunlamp-covered night production must consume irrigation coverage.");
+            AssertEqual(GameTime.TicksPerGameDay / 2, runtime.InputCoverageTicks,
+                "Night half-day production must leave the unused half-day irrigation coverage.");
         }
 
         private static void AgriculturalLightOnlyAffectsFarmProduction()
@@ -3265,6 +3333,8 @@ namespace WenMingBlocks.Runtime.Tests
                 CoreBuildingIds.Farm, 1, 20, 100, 0, 100);
             simulation.State.Survival.NextSettlementTick = long.MaxValue;
             simulation.State.Waste.NextSettlementTick = long.MaxValue;
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false);
             simulation.State.Waste.AccumulatedSatisfactionPenaltyBasisPoints = 2000;
             simulation.Tick(GameTime.TicksPerGameDay);
             BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
@@ -5163,6 +5233,8 @@ namespace WenMingBlocks.Runtime.Tests
                 CoreBuildingIds.Farm, workerCount, 30, 100, 0, 100);
             simulation.State.Survival.NextSettlementTick = long.MaxValue;
             simulation.State.Waste.NextSettlementTick = long.MaxValue;
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false);
             simulation.State.Resources.Items[CoreResourceIds.Fertilizer] = new ResourceStack
             {
                 ResourceId = CoreResourceIds.Fertilizer,

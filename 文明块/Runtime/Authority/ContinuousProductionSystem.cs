@@ -84,114 +84,177 @@ namespace WenMingBlocks.Runtime.Authority
                     continue;
                 }
 
-                if (StringComparer.Ordinal.Equals(building.DefinitionId, CoreBuildingIds.Farm) &&
-                    !HasRequiredAgriculturalLight(context.State, building))
+                if (StringComparer.Ordinal.Equals(building.DefinitionId, CoreBuildingIds.Farm))
                 {
-                    runtime.Status = ContinuousProductionStatuses.PausedNoLight;
+                    ProcessFarmProductionSegments(
+                        context, events, buildingId, building, definition, runtime, workerCount, deltaTicks);
                     continue;
                 }
 
-                int efficiencyBasisPoints = WasteEffectRules.ResolveWorkEfficiencyBasisPoints(context.State);
-                long rateUnitsPerTick = checked((long)workerCount * definition.OutputPerWorkerPerDay);
-                int freeCapacity = GetOutputCapacity(context.State, building, definition.OutputResourceId);
-                long effectiveTicksToBlockedOutput = TicksToGenerate(
-                    checked((long)freeCapacity + 1), runtime.ProgressUnits, rateUnitsPerTick);
-                long ticksToBlockedOutput = WasteEffectRules.ActualTicksToReachEffectiveTicks(
-                    effectiveTicksToBlockedOutput,
-                    efficiencyBasisPoints,
-                    runtime.EfficiencyRemainderBasisPointTicks);
-                long availableTicks = Math.Min(deltaTicks, ticksToBlockedOutput);
-                foreach (KeyValuePair<string, int> output in definition.AdditionalOutputsPerWorkerPerDay)
-                {
-                    long progress = runtime.AdditionalProgressUnits.TryGetValue(output.Key, out long value) ? value : 0;
-                    long rate = checked((long)workerCount * output.Value);
-                    int capacity = GetOutputCapacity(context.State, building, output.Key);
-                    long effectiveTicks = TicksToGenerate(checked((long)capacity + 1), progress, rate);
-                    availableTicks = Math.Min(availableTicks,
-                        WasteEffectRules.ActualTicksToReachEffectiveTicks(
-                            effectiveTicks,
-                            efficiencyBasisPoints,
-                            runtime.EfficiencyRemainderBasisPointTicks));
-                }
-
-                if (definition.OperatingInputPerDay > 0)
-                {
-                    long inputCycles = GetAvailableInput(context.State, building, definition.OperatingInputResourceId) /
-                                       definition.OperatingInputPerDay;
-                    long maximumInputTicks = checked(runtime.InputCoverageTicks +
-                        checked(inputCycles * GameTime.TicksPerGameDay));
-                    availableTicks = Math.Min(availableTicks, maximumInputTicks);
-                }
-
-                if (availableTicks <= 0)
-                {
-                    runtime.Status = definition.OperatingInputPerDay > 0
-                        ? ContinuousProductionStatuses.PausedInput
-                        : ContinuousProductionStatuses.OutputPending;
-                    continue;
-                }
-
-                if (definition.OperatingInputPerDay > 0)
-                {
-                    long uncoveredTicks = Math.Max(0, availableTicks - runtime.InputCoverageTicks);
-                    long cycles = DivideRoundUp(uncoveredTicks, GameTime.TicksPerGameDay);
-                    int inputAmount = checked((int)(cycles * definition.OperatingInputPerDay));
-                    if (inputAmount > 0)
-                    {
-                        ConsumeInput(context.State, building, definition.OperatingInputResourceId, inputAmount);
-                        runtime.InputCoverageTicks = checked(runtime.InputCoverageTicks +
-                            checked(cycles * GameTime.TicksPerGameDay));
-                    }
-                    runtime.InputCoverageTicks -= availableTicks;
-                }
-
-                int efficiencyRemainder = runtime.EfficiencyRemainderBasisPointTicks;
-                long effectiveAvailableTicks = WasteEffectRules.ApplyEfficiency(
-                    availableTicks,
-                    efficiencyBasisPoints,
-                    ref efficiencyRemainder);
-                runtime.EfficiencyRemainderBasisPointTicks = efficiencyRemainder;
-                long totalUnits = checked(runtime.ProgressUnits + checked(effectiveAvailableTicks * rateUnitsPerTick));
-                int generated = checked((int)(totalUnits / GameTime.TicksPerGameDay));
-                runtime.ProgressUnits = totalUnits % GameTime.TicksPerGameDay;
-                int fertilizerBonus = ApplyFertilizerBonus(runtime, generated);
-                generated = checked(generated + fertilizerBonus);
-                if (fertilizerBonus > 0)
-                {
-                    events.Add(context.Events.Create(FertilizerBonusProducedEvent, "system:core:continuous_production",
-                        new FertilizerBonusPayload
-                        {
-                            BuildingId = buildingId,
-                            BonusAmount = fertilizerBonus,
-                            BaseOutputRemaining = runtime.FertilizerBaseOutputRemaining
-                        }));
-                }
-                int transferred = StoreOutput(context.State, building, definition.OutputResourceId, generated);
-                runtime.PendingOutputAmount = generated - transferred;
-                EmitStored(context, events, buildingId, definition.OutputResourceId, transferred, runtime.PendingOutputAmount);
-                foreach (KeyValuePair<string, int> output in definition.AdditionalOutputsPerWorkerPerDay.OrderBy(pair => pair.Key, StringComparer.Ordinal))
-                {
-                    long progress = runtime.AdditionalProgressUnits.TryGetValue(output.Key, out long value) ? value : 0;
-                    long outputTotal = checked(progress + checked(effectiveAvailableTicks * workerCount * (long)output.Value));
-                    int outputGenerated = checked((int)(outputTotal / GameTime.TicksPerGameDay));
-                    runtime.AdditionalProgressUnits[output.Key] = outputTotal % GameTime.TicksPerGameDay;
-                    int outputStored = StoreOutput(context.State, building, output.Key, outputGenerated);
-                    int outputPending = outputGenerated - outputStored;
-                    if (outputPending > 0) runtime.AdditionalPendingOutputs[output.Key] = outputPending;
-                    else runtime.AdditionalPendingOutputs.Remove(output.Key);
-                    EmitStored(context, events, buildingId, output.Key, outputStored, outputPending);
-                }
-                runtime.Status = runtime.PendingOutputAmount > 0 || HasAdditionalPending(runtime)
-                    ? ContinuousProductionStatuses.OutputPending
-                    : availableTicks < deltaTicks && definition.OperatingInputPerDay > 0
-                        ? ContinuousProductionStatuses.PausedInput
-                        : ContinuousProductionStatuses.Running;
+                ProcessContinuousProductionTicks(
+                    context, events, buildingId, building, definition, runtime, workerCount, deltaTicks);
             }
 
             return events;
         }
 
-        private static bool HasRequiredAgriculturalLight(GameState state, BuildingInstanceState farm)
+        private static void ProcessFarmProductionSegments(
+            SimulationContext context,
+            List<GameEvent> events,
+            string buildingId,
+            BuildingInstanceState building,
+            ContinuousProductionDefinition definition,
+            ContinuousProductionBuildingState runtime,
+            int workerCount,
+            long deltaTicks)
+        {
+            long endTick = context.State.SimulationTick;
+            long currentTick = checked(endTick - deltaTicks);
+
+            while (currentTick < endTick)
+            {
+                long segmentEnd = GetNextDayNightBoundary(currentTick, endTick);
+                long segmentTicks = checked(segmentEnd - currentTick);
+                if (segmentTicks <= 0) break;
+
+                if (!HasRequiredAgriculturalLight(context.State, building, currentTick))
+                {
+                    runtime.Status = ContinuousProductionStatuses.PausedNoLight;
+                    currentTick = segmentEnd;
+                    continue;
+                }
+
+                bool completedSegment = ProcessContinuousProductionTicks(
+                    context, events, buildingId, building, definition, runtime, workerCount, segmentTicks);
+                if (!completedSegment)
+                {
+                    return;
+                }
+
+                currentTick = segmentEnd;
+            }
+        }
+
+        private static long GetNextDayNightBoundary(long currentTick, long endTick)
+        {
+            long tickWithinDay = DayNightCycle.GetTickWithinDay(currentTick);
+            long ticksToBoundary = tickWithinDay < DayNightCycle.TicksPerHalfDay
+                ? DayNightCycle.TicksPerHalfDay - tickWithinDay
+                : GameTime.TicksPerGameDay - tickWithinDay;
+            long boundary = checked(currentTick + ticksToBoundary);
+            return Math.Min(boundary, endTick);
+        }
+
+        private static bool ProcessContinuousProductionTicks(
+            SimulationContext context,
+            List<GameEvent> events,
+            string buildingId,
+            BuildingInstanceState building,
+            ContinuousProductionDefinition definition,
+            ContinuousProductionBuildingState runtime,
+            int workerCount,
+            long deltaTicks)
+        {
+            int efficiencyBasisPoints = WasteEffectRules.ResolveWorkEfficiencyBasisPoints(context.State);
+            long rateUnitsPerTick = checked((long)workerCount * definition.OutputPerWorkerPerDay);
+            int freeCapacity = GetOutputCapacity(context.State, building, definition.OutputResourceId);
+            long effectiveTicksToBlockedOutput = TicksToGenerate(
+                checked((long)freeCapacity + 1), runtime.ProgressUnits, rateUnitsPerTick);
+            long ticksToBlockedOutput = WasteEffectRules.ActualTicksToReachEffectiveTicks(
+                effectiveTicksToBlockedOutput,
+                efficiencyBasisPoints,
+                runtime.EfficiencyRemainderBasisPointTicks);
+            long availableTicks = Math.Min(deltaTicks, ticksToBlockedOutput);
+            foreach (KeyValuePair<string, int> output in definition.AdditionalOutputsPerWorkerPerDay)
+            {
+                long progress = runtime.AdditionalProgressUnits.TryGetValue(output.Key, out long value) ? value : 0;
+                long rate = checked((long)workerCount * output.Value);
+                int capacity = GetOutputCapacity(context.State, building, output.Key);
+                long effectiveTicks = TicksToGenerate(checked((long)capacity + 1), progress, rate);
+                availableTicks = Math.Min(availableTicks,
+                    WasteEffectRules.ActualTicksToReachEffectiveTicks(
+                        effectiveTicks,
+                        efficiencyBasisPoints,
+                        runtime.EfficiencyRemainderBasisPointTicks));
+            }
+
+            if (definition.OperatingInputPerDay > 0)
+            {
+                long inputCycles = GetAvailableInput(context.State, building, definition.OperatingInputResourceId) /
+                                   definition.OperatingInputPerDay;
+                long maximumInputTicks = checked(runtime.InputCoverageTicks +
+                    checked(inputCycles * GameTime.TicksPerGameDay));
+                availableTicks = Math.Min(availableTicks, maximumInputTicks);
+            }
+
+            if (availableTicks <= 0)
+            {
+                runtime.Status = definition.OperatingInputPerDay > 0
+                    ? ContinuousProductionStatuses.PausedInput
+                    : ContinuousProductionStatuses.OutputPending;
+                return false;
+            }
+
+            if (definition.OperatingInputPerDay > 0)
+            {
+                long uncoveredTicks = Math.Max(0, availableTicks - runtime.InputCoverageTicks);
+                long cycles = DivideRoundUp(uncoveredTicks, GameTime.TicksPerGameDay);
+                int inputAmount = checked((int)(cycles * definition.OperatingInputPerDay));
+                if (inputAmount > 0)
+                {
+                    ConsumeInput(context.State, building, definition.OperatingInputResourceId, inputAmount);
+                    runtime.InputCoverageTicks = checked(runtime.InputCoverageTicks +
+                        checked(cycles * GameTime.TicksPerGameDay));
+                }
+                runtime.InputCoverageTicks -= availableTicks;
+            }
+
+            int efficiencyRemainder = runtime.EfficiencyRemainderBasisPointTicks;
+            long effectiveAvailableTicks = WasteEffectRules.ApplyEfficiency(
+                availableTicks,
+                efficiencyBasisPoints,
+                ref efficiencyRemainder);
+            runtime.EfficiencyRemainderBasisPointTicks = efficiencyRemainder;
+            long totalUnits = checked(runtime.ProgressUnits + checked(effectiveAvailableTicks * rateUnitsPerTick));
+            int generated = checked((int)(totalUnits / GameTime.TicksPerGameDay));
+            runtime.ProgressUnits = totalUnits % GameTime.TicksPerGameDay;
+            int fertilizerBonus = ApplyFertilizerBonus(runtime, generated);
+            generated = checked(generated + fertilizerBonus);
+            if (fertilizerBonus > 0)
+            {
+                events.Add(context.Events.Create(FertilizerBonusProducedEvent, "system:core:continuous_production",
+                    new FertilizerBonusPayload
+                    {
+                        BuildingId = buildingId,
+                        BonusAmount = fertilizerBonus,
+                        BaseOutputRemaining = runtime.FertilizerBaseOutputRemaining
+                    }));
+            }
+            int transferred = StoreOutput(context.State, building, definition.OutputResourceId, generated);
+            runtime.PendingOutputAmount = generated - transferred;
+            EmitStored(context, events, buildingId, definition.OutputResourceId, transferred, runtime.PendingOutputAmount);
+            foreach (KeyValuePair<string, int> output in definition.AdditionalOutputsPerWorkerPerDay.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            {
+                long progress = runtime.AdditionalProgressUnits.TryGetValue(output.Key, out long value) ? value : 0;
+                long outputTotal = checked(progress + checked(effectiveAvailableTicks * workerCount * (long)output.Value));
+                int outputGenerated = checked((int)(outputTotal / GameTime.TicksPerGameDay));
+                runtime.AdditionalProgressUnits[output.Key] = outputTotal % GameTime.TicksPerGameDay;
+                int outputStored = StoreOutput(context.State, building, output.Key, outputGenerated);
+                int outputPending = outputGenerated - outputStored;
+                if (outputPending > 0) runtime.AdditionalPendingOutputs[output.Key] = outputPending;
+                else runtime.AdditionalPendingOutputs.Remove(output.Key);
+                EmitStored(context, events, buildingId, output.Key, outputStored, outputPending);
+            }
+            runtime.Status = runtime.PendingOutputAmount > 0 || HasAdditionalPending(runtime)
+                ? ContinuousProductionStatuses.OutputPending
+                : availableTicks < deltaTicks && definition.OperatingInputPerDay > 0
+                    ? ContinuousProductionStatuses.PausedInput
+                    : ContinuousProductionStatuses.Running;
+            return availableTicks >= deltaTicks && StringComparer.Ordinal.Equals(
+                runtime.Status, ContinuousProductionStatuses.Running);
+        }
+
+        private static bool HasRequiredAgriculturalLight(GameState state, BuildingInstanceState farm, long simulationTick)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
             if (farm == null) throw new ArgumentNullException(nameof(farm));
@@ -204,6 +267,18 @@ namespace WenMingBlocks.Runtime.Authority
                 .Where(instance => instance != null &&
                     StringComparer.Ordinal.Equals(instance.DefinitionId, CoreBuildingIds.Sunlamp) &&
                     BuildingOperationalRules.IsOperational(instance));
+
+            if (DayNightCycle.GetPhase(simulationTick) == DayNightPhase.Night)
+            {
+                return AgriculturalLightRules.HasFullActiveSunlampCoverage(
+                    farm,
+                    activeSunlamps,
+                    plot.X,
+                    plot.Y,
+                    plot.Width,
+                    plot.Depth,
+                    plot.MaxStackLayers);
+            }
 
             return AgriculturalLightRules.HasRequiredLight(
                 farm,
