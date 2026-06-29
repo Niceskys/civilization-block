@@ -4842,7 +4842,13 @@ namespace WenMingBlocks.Runtime.Tests
 
             IReadOnlyList<DiagnosticIssue> issues = StateDiagnostics.CheckInvariants(state, definitions);
 
-            AssertTrue(issues.Any(issue => issue.Code == "structure.unsupported"), "Diagnostics must report unsupported structure.");
+            DiagnosticIssue issue = issues.Single(item => item.Code == "structure.unsupported");
+            AssertEqual("building:core:floating", issue.TargetIds.Single(),
+                "Unsupported structure diagnostic must expose the unsupported building target.");
+            AssertEqual(95, issue.Priority.GetValueOrDefault(),
+                "Structural diagnostics must expose stable display priority.");
+            AssertEqual("structural_support", issue.SourceSystem,
+                "Structural diagnostics must expose their source system.");
         }
 
         private static void StateDiagnosticsReportsStructuralOverload()
@@ -4856,7 +4862,13 @@ namespace WenMingBlocks.Runtime.Tests
 
             IReadOnlyList<DiagnosticIssue> issues = StateDiagnostics.CheckInvariants(state, definitions);
 
-            AssertTrue(issues.Any(issue => issue.Code == "structure.capacity.exceeded"), "Diagnostics must report overloaded support.");
+            DiagnosticIssue issue = issues.Single(item => item.Code == "structure.capacity.exceeded");
+            AssertEqual("building:core:diagnostic_pillar", issue.TargetIds.Single(),
+                "Structural overload diagnostic must expose the overloaded support target.");
+            AssertEqual(95, issue.Priority.GetValueOrDefault(),
+                "Structural diagnostics must expose stable display priority.");
+            AssertEqual("structural_support", issue.SourceSystem,
+                "Structural diagnostics must expose their source system.");
         }
 
         private static void StateDiagnosticsReportsFarmMissingLight()

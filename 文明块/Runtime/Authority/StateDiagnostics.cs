@@ -987,9 +987,36 @@ namespace WenMingBlocks.Runtime.Authority
                 StructuralSupportResult result = StructuralSupport.Validate(pair.Value);
                 if (!result.Accepted)
                 {
-                    AddError(issues, MapStructuralDiagnosticCode(result.Code), result.Reason);
+                    AddError(
+                        issues,
+                        MapStructuralDiagnosticCode(result.Code),
+                        result.Reason,
+                        GetStructuralTargetIds(result),
+                        95,
+                        "structural_support");
                 }
             }
+        }
+
+        private static IEnumerable<string> GetStructuralTargetIds(StructuralSupportResult result)
+        {
+            if (result == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            List<string> ids = new List<string>();
+            if (!string.IsNullOrWhiteSpace(result.ObjectId))
+            {
+                ids.Add(result.ObjectId);
+            }
+            if (!string.IsNullOrWhiteSpace(result.SupporterId) &&
+                !ids.Contains(result.SupporterId, StringComparer.Ordinal))
+            {
+                ids.Add(result.SupporterId);
+            }
+
+            return ids;
         }
 
         private static void AddStructuralNode(
@@ -1026,9 +1053,15 @@ namespace WenMingBlocks.Runtime.Authority
             }
         }
 
-        private static void AddError(List<DiagnosticIssue> issues, string code, string message)
+        private static void AddError(
+            List<DiagnosticIssue> issues,
+            string code,
+            string message,
+            IEnumerable<string> targetIds = null,
+            int? priority = null,
+            string sourceSystem = null)
         {
-            issues.Add(CreateIssue(DiagnosticSeverity.Error, code, message, null, null, null));
+            issues.Add(CreateIssue(DiagnosticSeverity.Error, code, message, targetIds, priority, sourceSystem));
         }
 
         private static void AddWarning(List<DiagnosticIssue> issues, string code, string message)
