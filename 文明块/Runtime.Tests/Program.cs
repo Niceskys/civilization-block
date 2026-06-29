@@ -25,6 +25,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Transport blocks state exchange before compatible handshake", TransportBlocksStateBeforeHandshake);
             Run("Remote session rejects incompatible handshake", RemoteSessionRejectsIncompatibleHandshake);
             Run("StateDiagnostics reports negative resources", StateDiagnosticsReportsNegativeResources);
+            Run("StateDiagnostics reports resource storage targets", StateDiagnosticsReportsResourceStorageTargets);
             Run("StateDiagnostics detects duplicate building layers", StateDiagnosticsDetectsDuplicateBuildingLayers);
             Run("StateDiagnostics handles empty state without exception", StateDiagnosticsHandlesEmptyState);
             Run("StateDiagnostics reports local inventory target", StateDiagnosticsReportsLocalInventoryTarget);
@@ -365,6 +366,41 @@ namespace WenMingBlocks.Runtime.Tests
             IReadOnlyList<DiagnosticIssue> issues = StateDiagnostics.CheckInvariants(state, new DefinitionRegistry());
             AssertTrue(issues.Any(issue => issue.Code == "resource.amount.negative"), "Expected negative resource diagnostic.");
             AssertFalse(string.IsNullOrWhiteSpace(StateDiagnostics.CalculateStateHash(state)), "Expected state hash.");
+        }
+
+        private static void StateDiagnosticsReportsResourceStorageTargets()
+        {
+            GameState state = new GameState();
+            state.Resources.SharedCapacity = 1;
+            state.Resources.Items[CoreResourceIds.Wood] = new ResourceStack
+            {
+                ResourceId = CoreResourceIds.Wood,
+                Amount = 2,
+                Capacity = 1
+            };
+
+            string beforeHash = StateDiagnostics.CalculateStateHash(state);
+            IReadOnlyList<DiagnosticIssue> issues =
+                StateDiagnostics.CheckInvariants(state, RuntimeComposition.CreateDefinitions());
+            string afterHash = StateDiagnostics.CalculateStateHash(state);
+
+            DiagnosticIssue resourceIssue = issues.Single(item => item.Code == "resource.amount.over_capacity");
+            AssertEqual(CoreResourceIds.Wood, resourceIssue.TargetIds.Single(),
+                "Resource over-capacity diagnostic must expose the resource target id.");
+            AssertEqual(85, resourceIssue.Priority.GetValueOrDefault(),
+                "Resource over-capacity diagnostic must expose stable display priority.");
+            AssertEqual("resource_storage", resourceIssue.SourceSystem,
+                "Resource over-capacity diagnostic must expose its source system.");
+
+            DiagnosticIssue sharedIssue = issues.Single(item => item.Code == "resource.shared_capacity.exceeded");
+            AssertEqual(0, sharedIssue.TargetIds.Count,
+                "Shared-capacity diagnostic must not invent a building target.");
+            AssertEqual(85, sharedIssue.Priority.GetValueOrDefault(),
+                "Shared-capacity diagnostic must expose stable display priority.");
+            AssertEqual("resource_storage", sharedIssue.SourceSystem,
+                "Shared-capacity diagnostic must expose its source system.");
+            AssertEqual(beforeHash, afterHash,
+                "Diagnostic display metadata must not mutate authoritative state hash.");
         }
 
         private static void StateDiagnosticsDetectsDuplicateBuildingLayers()

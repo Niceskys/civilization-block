@@ -117,7 +117,13 @@ namespace WenMingBlocks.Runtime.Authority
 
                 if (pair.Value.Amount > pair.Value.Capacity)
                 {
-                    AddWarning(issues, "resource.amount.over_capacity", $"Resource {pair.Key} amount is greater than capacity.");
+                    AddWarning(
+                        issues,
+                        "resource.amount.over_capacity",
+                        $"Resource {pair.Key} amount is greater than capacity.",
+                        new[] { pair.Key },
+                        85,
+                        "resource_storage");
                 }
 
                 if (pair.Value.LockedAmount < 0 || pair.Value.LockedAmount > pair.Value.Amount)
@@ -130,7 +136,10 @@ namespace WenMingBlocks.Runtime.Authority
                 state.Resources.SharedCapacity)
             {
                 AddWarning(issues, "resource.shared_capacity.exceeded",
-                    "Global resource amount and reservations exceed shared storage capacity.");
+                    "Global resource amount and reservations exceed shared storage capacity.",
+                    null,
+                    85,
+                    "resource_storage");
             }
         }
 
@@ -1070,9 +1079,15 @@ namespace WenMingBlocks.Runtime.Authority
             issues.Add(CreateIssue(DiagnosticSeverity.Error, code, message, targetIds, priority, sourceSystem));
         }
 
-        private static void AddWarning(List<DiagnosticIssue> issues, string code, string message)
+        private static void AddWarning(
+            List<DiagnosticIssue> issues,
+            string code,
+            string message,
+            IEnumerable<string> targetIds = null,
+            int? priority = null,
+            string sourceSystem = null)
         {
-            issues.Add(CreateIssue(DiagnosticSeverity.Warning, code, message, null, null, null));
+            issues.Add(CreateIssue(DiagnosticSeverity.Warning, code, message, targetIds, priority, sourceSystem));
         }
 
         private static void AddInfo(
