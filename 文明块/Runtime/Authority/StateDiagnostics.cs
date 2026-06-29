@@ -64,6 +64,7 @@ namespace WenMingBlocks.Runtime.Authority
             CheckWaste(state, issues);
             CheckProduction(state, definitions, issues);
             CheckContinuousProduction(state, definitions, issues);
+            CheckSunlamps(state, issues);
             CheckLogistics(state, issues);
             CheckCommands(state, issues);
             return issues;
@@ -380,6 +381,42 @@ namespace WenMingBlocks.Runtime.Authority
                 {
                     AddInfo(issues, "continuous_production.farm.no_light",
                         $"Farm {pair.Key} is paused because required agricultural light is missing.");
+                }
+            }
+        }
+
+        private static void CheckSunlamps(GameState state, List<DiagnosticIssue> issues)
+        {
+            if (state.Sunlamps == null || state.Sunlamps.Buildings == null)
+            {
+                AddError(issues, "sunlamp.state.null", "Sunlamp runtime state cannot be null.");
+                return;
+            }
+
+            foreach (KeyValuePair<string, SunlampBuildingState> pair in state.Sunlamps.Buildings)
+            {
+                SunlampBuildingState runtime = pair.Value;
+                bool hasBuilding = state.Buildings.Instances.TryGetValue(
+                    pair.Key, out BuildingInstanceState building);
+                bool invalid = runtime == null ||
+                    !StringComparer.Ordinal.Equals(pair.Key, runtime.BuildingId) ||
+                    !StableId.IsValid(runtime.BuildingId) ||
+                    !hasBuilding ||
+                    building == null ||
+                    !StringComparer.Ordinal.Equals(building.DefinitionId, CoreBuildingIds.Sunlamp) ||
+                    runtime.FuelCoverageTicks < 0 ||
+                    runtime.FuelCoverageTicks > GameTime.TicksPerGameDay;
+                if (invalid)
+                {
+                    AddError(issues, "sunlamp.state.invalid",
+                        $"Sunlamp runtime state {pair.Key} is invalid.");
+                    continue;
+                }
+
+                if (BuildingOperationalRules.IsOperational(building) && runtime.FuelCoverageTicks == 0)
+                {
+                    AddInfo(issues, "sunlamp.fuel.empty",
+                        $"Sunlamp {pair.Key} has no prepaid fuel coverage.");
                 }
             }
         }

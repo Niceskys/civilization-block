@@ -79,9 +79,14 @@ namespace WenMingBlocks.Runtime.Authority
             bool migrateWaste = migrateSharedStorage || StringComparer.Ordinal.Equals(state.SaveVersion, "2.5");
             bool migrateWasteEffects = migrateWaste || StringComparer.Ordinal.Equals(state.SaveVersion, "2.6");
             bool migrateFertilizer = migrateWasteEffects || StringComparer.Ordinal.Equals(state.SaveVersion, "2.7");
+            bool migrateSunlamps = migrateFertilizer || StringComparer.Ordinal.Equals(state.SaveVersion, "2.8");
             if (migrateFertilizer)
             {
                 state.SaveVersion = "2.8";
+            }
+            if (migrateSunlamps)
+            {
+                state.SaveVersion = "2.9";
             }
             state.PlayerId = string.IsNullOrWhiteSpace(state.PlayerId) ? "player:core:local" : state.PlayerId;
 
@@ -143,6 +148,11 @@ namespace WenMingBlocks.Runtime.Authority
             if (state.ContinuousProduction == null)
             {
                 state.ContinuousProduction = new ContinuousProductionRuntimeState();
+            }
+
+            if (state.Sunlamps == null)
+            {
+                state.Sunlamps = new SunlampRuntimeState();
             }
 
             if (state.Logistics == null)
@@ -236,6 +246,11 @@ namespace WenMingBlocks.Runtime.Authority
                     runtime.AdditionalPendingOutputs = new Dictionary<string, int>(StringComparer.Ordinal);
             }
 
+            if (state.Sunlamps.Buildings == null)
+            {
+                state.Sunlamps.Buildings = new Dictionary<string, SunlampBuildingState>(StringComparer.Ordinal);
+            }
+
             if (state.Logistics.ActiveTasks == null)
             {
                 state.Logistics.ActiveTasks = new Dictionary<string, TransportTaskState>(StringComparer.Ordinal);
@@ -289,6 +304,7 @@ namespace WenMingBlocks.Runtime.Authority
             ValidateWasteState(state);
             ValidateProductionState(state);
             ValidateContinuousProductionState(state);
+            ValidateSunlampState(state);
             DifficultyProfiles.ResolveStructuralFailure(state.Difficulty);
             ValidateSpatialOccupancy(state);
             RepairSequences(state);
@@ -556,6 +572,30 @@ namespace WenMingBlocks.Runtime.Authority
                      !StringComparer.Ordinal.Equals(runtime.Status, ContinuousProductionStatuses.OutputPending)))
                 {
                     throw new InvalidOperationException($"Continuous production state {pair.Key} is invalid.");
+                }
+            }
+        }
+
+        private static void ValidateSunlampState(GameState state)
+        {
+            if (state.Sunlamps == null || state.Sunlamps.Buildings == null)
+            {
+                throw new InvalidOperationException("Sunlamp runtime state is invalid.");
+            }
+
+            foreach (KeyValuePair<string, SunlampBuildingState> pair in state.Sunlamps.Buildings)
+            {
+                SunlampBuildingState runtime = pair.Value;
+                if (runtime == null ||
+                    !StringComparer.Ordinal.Equals(pair.Key, runtime.BuildingId) ||
+                    !StableId.IsValid(runtime.BuildingId) ||
+                    !state.Buildings.Instances.TryGetValue(runtime.BuildingId, out BuildingInstanceState building) ||
+                    building == null ||
+                    !StringComparer.Ordinal.Equals(building.DefinitionId, CoreBuildingIds.Sunlamp) ||
+                    runtime.FuelCoverageTicks < 0 ||
+                    runtime.FuelCoverageTicks > GameTime.TicksPerGameDay)
+                {
+                    throw new InvalidOperationException($"Sunlamp state {pair.Key} is invalid.");
                 }
             }
         }

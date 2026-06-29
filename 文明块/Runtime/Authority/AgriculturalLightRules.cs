@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace WenMingBlocks.Runtime.Authority
 {
@@ -122,6 +123,29 @@ namespace WenMingBlocks.Runtime.Authority
 
             List<BuildingInstanceState> sunlampSnapshot = ValidateAndSnapshotSunlamps(activeSunlamps);
             return HasFullActiveSunlampCoverageCore(farm, sunlampSnapshot, plotOriginX, plotOriginY, plotWidth, plotDepth, maxStackLayers);
+        }
+
+        /// <summary>
+        /// Selects a deterministic set of active sunlamps whose combined coverage covers every farm footprint cell.
+        /// The method is pure geometry selection and does not consume fuel or mutate state.
+        /// </summary>
+        public static IReadOnlyList<string> SelectSunlampIdsForFullCoverage(
+            BuildingInstanceState farm,
+            IEnumerable<BuildingInstanceState> activeSunlamps,
+            int plotOriginX, int plotOriginY,
+            int plotWidth, int plotDepth, int maxStackLayers)
+        {
+            if (farm == null) throw new ArgumentNullException(nameof(farm));
+            if (string.IsNullOrEmpty(farm.BuildingId)) throw new ArgumentException("Farm BuildingId cannot be null or empty.", nameof(farm));
+            if (plotWidth <= 0) throw new ArgumentOutOfRangeException(nameof(plotWidth));
+            if (plotDepth <= 0) throw new ArgumentOutOfRangeException(nameof(plotDepth));
+            if (maxStackLayers <= 0) throw new ArgumentOutOfRangeException(nameof(maxStackLayers));
+            if (farm.PlacedWidth <= 0) throw new ArgumentOutOfRangeException(nameof(farm.PlacedWidth));
+            if (farm.PlacedDepth <= 0) throw new ArgumentOutOfRangeException(nameof(farm.PlacedDepth));
+
+            List<BuildingInstanceState> sunlampSnapshot = ValidateAndSnapshotSunlamps(activeSunlamps);
+            return SelectSunlampIdsForFullCoverageCore(
+                farm, sunlampSnapshot, plotOriginX, plotOriginY, plotWidth, plotDepth, maxStackLayers);
         }
 
         /// <summary>
@@ -292,6 +316,38 @@ namespace WenMingBlocks.Runtime.Authority
             }
 
             return true;
+        }
+
+        private static IReadOnlyList<string> SelectSunlampIdsForFullCoverageCore(
+            BuildingInstanceState farm,
+            List<BuildingInstanceState> activeSunlamps,
+            int plotOriginX, int plotOriginY,
+            int plotWidth, int plotDepth, int maxStackLayers)
+        {
+            HashSet<SpatialGridCell> uncovered = new HashSet<SpatialGridCell>(GetFarmFootprintCells(farm));
+            List<string> selectedIds = new List<string>();
+            foreach (BuildingInstanceState sunlamp in activeSunlamps
+                .Where(candidate => string.Equals(candidate.PlotId, farm.PlotId, StringComparison.Ordinal) &&
+                    !candidate.IsDestroyed)
+                .OrderBy(candidate => candidate.BuildingId, StringComparer.Ordinal))
+            {
+                IReadOnlyList<SpatialGridCell> sunlampCells = GetSunlampCoverageCells(
+                    sunlamp.AnchorX, sunlamp.AnchorY, sunlamp.BaseLayer,
+                    plotOriginX, plotOriginY, plotWidth, plotDepth, maxStackLayers);
+                bool used = false;
+                for (int i = 0; i < sunlampCells.Count; i++)
+                {
+                    if (uncovered.Remove(sunlampCells[i]))
+                    {
+                        used = true;
+                    }
+                }
+
+                if (used) selectedIds.Add(sunlamp.BuildingId);
+                if (uncovered.Count == 0) return selectedIds;
+            }
+
+            return Array.Empty<string>();
         }
     }
 }

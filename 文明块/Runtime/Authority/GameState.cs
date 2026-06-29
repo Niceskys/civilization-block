@@ -10,7 +10,7 @@ namespace WenMingBlocks.Runtime.Authority
 
     public sealed class GameState
     {
-        public string SaveVersion { get; set; } = "2.8";
+        public string SaveVersion { get; set; } = "2.9";
         public string PlayerId { get; set; } = "player:core:local";
         public long SimulationTick { get; set; }
         public long RngSeed { get; set; }
@@ -30,6 +30,7 @@ namespace WenMingBlocks.Runtime.Authority
         public WasteRuntimeState Waste { get; set; } = new WasteRuntimeState();
         public ProductionRuntimeState Production { get; set; } = new ProductionRuntimeState();
         public ContinuousProductionRuntimeState ContinuousProduction { get; set; } = new ContinuousProductionRuntimeState();
+        public SunlampRuntimeState Sunlamps { get; set; } = new SunlampRuntimeState();
         public LogisticsRuntimeState Logistics { get; set; } = new LogisticsRuntimeState();
         public DifficultyState Difficulty { get; set; } = new DifficultyState();
         public CommandHistoryState Commands { get; set; } = new CommandHistoryState();
@@ -258,6 +259,18 @@ namespace WenMingBlocks.Runtime.Authority
     {
         public Dictionary<string, ContinuousProductionBuildingState> Buildings { get; set; } =
             new Dictionary<string, ContinuousProductionBuildingState>(StringComparer.Ordinal);
+    }
+
+    public sealed class SunlampRuntimeState
+    {
+        public Dictionary<string, SunlampBuildingState> Buildings { get; set; } =
+            new Dictionary<string, SunlampBuildingState>(StringComparer.Ordinal);
+    }
+
+    public sealed class SunlampBuildingState
+    {
+        public string BuildingId { get; set; } = string.Empty;
+        public long FuelCoverageTicks { get; set; }
     }
 
     public sealed class ContinuousProductionBuildingState

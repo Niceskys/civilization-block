@@ -30,6 +30,7 @@ namespace WenMingBlocks.Runtime.Authority
         {
             List<GameEvent> events = new List<GameEvent>();
             ReconcileStates(context);
+            Dictionary<string, long> sunlampConsumedUntilTick = new Dictionary<string, long>(StringComparer.Ordinal);
 
             foreach (string buildingId in context.State.ContinuousProduction.Buildings.Keys
                 .OrderBy(id => id, StringComparer.Ordinal).ToArray())
@@ -87,7 +88,8 @@ namespace WenMingBlocks.Runtime.Authority
                 if (StringComparer.Ordinal.Equals(building.DefinitionId, CoreBuildingIds.Farm))
                 {
                     ProcessFarmProductionSegments(
-                        context, events, buildingId, building, definition, runtime, workerCount, deltaTicks);
+                        context, events, buildingId, building, definition, runtime, workerCount, deltaTicks,
+                        sunlampConsumedUntilTick);
                     continue;
                 }
 
@@ -106,7 +108,8 @@ namespace WenMingBlocks.Runtime.Authority
             ContinuousProductionDefinition definition,
             ContinuousProductionBuildingState runtime,
             int workerCount,
-            long deltaTicks)
+            long deltaTicks,
+            Dictionary<string, long> sunlampConsumedUntilTick)
         {
             long endTick = context.State.SimulationTick;
             long currentTick = checked(endTick - deltaTicks);
@@ -117,7 +120,9 @@ namespace WenMingBlocks.Runtime.Authority
                 long segmentTicks = checked(segmentEnd - currentTick);
                 if (segmentTicks <= 0) break;
 
-                if (!HasRequiredAgriculturalLight(context.State, building, currentTick))
+                long lightAvailableTicks = ResolveAgriculturalLightTicks(
+                    context.State, building, currentTick, segmentTicks, sunlampConsumedUntilTick);
+                if (lightAvailableTicks <= 0)
                 {
                     runtime.Status = ContinuousProductionStatuses.PausedNoLight;
                     currentTick = segmentEnd;
@@ -125,13 +130,13 @@ namespace WenMingBlocks.Runtime.Authority
                 }
 
                 bool completedSegment = ProcessContinuousProductionTicks(
-                    context, events, buildingId, building, definition, runtime, workerCount, segmentTicks);
+                    context, events, buildingId, building, definition, runtime, workerCount, lightAvailableTicks);
                 if (!completedSegment)
                 {
                     return;
                 }
 
-                currentTick = segmentEnd;
+                currentTick = checked(currentTick + lightAvailableTicks);
             }
         }
 
@@ -254,23 +259,30 @@ namespace WenMingBlocks.Runtime.Authority
                 runtime.Status, ContinuousProductionStatuses.Running);
         }
 
-        private static bool HasRequiredAgriculturalLight(GameState state, BuildingInstanceState farm, long simulationTick)
+        private static long ResolveAgriculturalLightTicks(
+            GameState state,
+            BuildingInstanceState farm,
+            long simulationTick,
+            long segmentTicks,
+            Dictionary<string, long> sunlampConsumedUntilTick)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
             if (farm == null) throw new ArgumentNullException(nameof(farm));
+            if (sunlampConsumedUntilTick == null) throw new ArgumentNullException(nameof(sunlampConsumedUntilTick));
             if (!state.World.Plots.TryGetValue(farm.PlotId, out PlotState plot) || plot == null)
             {
-                return true;
+                return segmentTicks;
             }
 
-            IEnumerable<BuildingInstanceState> activeSunlamps = state.Buildings.Instances.Values
+            List<BuildingInstanceState> activeSunlamps = state.Buildings.Instances.Values
                 .Where(instance => instance != null &&
                     StringComparer.Ordinal.Equals(instance.DefinitionId, CoreBuildingIds.Sunlamp) &&
-                    BuildingOperationalRules.IsOperational(instance));
+                    BuildingOperationalRules.IsOperational(instance))
+                .ToList();
 
             if (DayNightCycle.GetPhase(simulationTick) == DayNightPhase.Night)
             {
-                return AgriculturalLightRules.HasFullActiveSunlampCoverage(
+                IReadOnlyList<string> sunlampIds = AgriculturalLightRules.SelectSunlampIdsForFullCoverage(
                     farm,
                     activeSunlamps,
                     plot.X,
@@ -278,17 +290,100 @@ namespace WenMingBlocks.Runtime.Authority
                     plot.Width,
                     plot.Depth,
                     plot.MaxStackLayers);
+                return ReserveSunlampCoverageTicks(state, sunlampIds, simulationTick, segmentTicks, sunlampConsumedUntilTick);
             }
 
-            return AgriculturalLightRules.HasRequiredLight(
+            if (!AgriculturalLightRules.IsPhysicallyOccluded(
                 farm,
-                state.Buildings.Instances.Values,
+                state.Buildings.Instances.Values))
+            {
+                return segmentTicks;
+            }
+
+            IReadOnlyList<string> selectedSunlampIds = AgriculturalLightRules.SelectSunlampIdsForFullCoverage(
+                farm,
                 activeSunlamps,
                 plot.X,
                 plot.Y,
                 plot.Width,
                 plot.Depth,
                 plot.MaxStackLayers);
+            return ReserveSunlampCoverageTicks(state, selectedSunlampIds, simulationTick, segmentTicks, sunlampConsumedUntilTick);
+        }
+
+        private static long ReserveSunlampCoverageTicks(
+            GameState state,
+            IReadOnlyList<string> sunlampIds,
+            long segmentStartTick,
+            long segmentTicks,
+            Dictionary<string, long> sunlampConsumedUntilTick)
+        {
+            if (sunlampIds == null || sunlampIds.Count == 0) return 0;
+
+            long availableTicks = segmentTicks;
+            foreach (string sunlampId in sunlampIds)
+            {
+                if (!state.Buildings.Instances.TryGetValue(sunlampId, out BuildingInstanceState sunlamp) ||
+                    sunlamp == null ||
+                    !BuildingOperationalRules.IsOperational(sunlamp))
+                {
+                    return 0;
+                }
+
+                state.Sunlamps.Buildings.TryGetValue(sunlampId, out SunlampBuildingState runtime);
+                long consumedUntil = sunlampConsumedUntilTick.TryGetValue(sunlampId, out long value)
+                    ? Math.Max(value, segmentStartTick)
+                    : segmentStartTick;
+                long ticksAlreadyReserved = Math.Max(0, consumedUntil - segmentStartTick);
+                long ticksToReserve = Math.Max(0, segmentTicks - ticksAlreadyReserved);
+                if (ticksToReserve <= 0) continue;
+
+                if ((runtime == null || runtime.FuelCoverageTicks <= 0) && !TryConsumeSunlampFuel(state, sunlamp))
+                {
+                    return ticksAlreadyReserved;
+                }
+
+                runtime = GetOrCreateSunlampRuntime(state, sunlampId);
+                availableTicks = Math.Min(availableTicks, checked(ticksAlreadyReserved + runtime.FuelCoverageTicks));
+            }
+
+            if (availableTicks <= 0) return 0;
+            foreach (string sunlampId in sunlampIds)
+            {
+                SunlampBuildingState runtime = GetOrCreateSunlampRuntime(state, sunlampId);
+                long consumedUntil = sunlampConsumedUntilTick.TryGetValue(sunlampId, out long value)
+                    ? Math.Max(value, segmentStartTick)
+                    : segmentStartTick;
+                long ticksAlreadyReserved = Math.Max(0, consumedUntil - segmentStartTick);
+                long ticksToReserve = Math.Max(0, availableTicks - ticksAlreadyReserved);
+                if (ticksToReserve <= 0) continue;
+                runtime.FuelCoverageTicks -= ticksToReserve;
+                sunlampConsumedUntilTick[sunlampId] = checked(segmentStartTick + availableTicks);
+            }
+
+            return availableTicks;
+        }
+
+        private static SunlampBuildingState GetOrCreateSunlampRuntime(GameState state, string sunlampId)
+        {
+            if (!state.Sunlamps.Buildings.TryGetValue(sunlampId, out SunlampBuildingState runtime))
+            {
+                runtime = new SunlampBuildingState { BuildingId = sunlampId };
+                state.Sunlamps.Buildings.Add(sunlampId, runtime);
+            }
+            return runtime;
+        }
+
+        private static bool TryConsumeSunlampFuel(GameState state, BuildingInstanceState sunlamp)
+        {
+            if (GetAvailableInput(state, sunlamp, CoreResourceIds.Fuel) < 1)
+            {
+                return false;
+            }
+
+            ConsumeInput(state, sunlamp, CoreResourceIds.Fuel, 1);
+            GetOrCreateSunlampRuntime(state, sunlamp.BuildingId).FuelCoverageTicks = GameTime.TicksPerGameDay;
+            return true;
         }
 
         public static ValidationResult ValidateDemolition(GameState state, string buildingId)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -66,6 +66,10 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Farm light day night split only produces daylight", FarmLightDayNightSplitOnlyProducesDaylight);
             Run("Farm light night day split does not backfill night", FarmLightNightDaySplitDoesNotBackfillNight);
             Run("Farm light night sunlamp supports production", FarmLightNightSunlampSupportsProduction);
+            Run("Farm light sunlamp consumes fuel coverage", FarmLightSunlampConsumesFuelCoverage);
+            Run("Farm light shared sunlamp charges by time not farm count", FarmLightSharedSunlampChargesByTimeNotFarmCount);
+            Run("Farm light unfueled sunlamp does not restore night production", FarmLightUnfueledSunlampDoesNotRestoreNightProduction);
+            Run("Farm light sunlamp fuel survives save round trip", FarmLightSunlampFuelSurvivesSaveRoundTrip);
             Run("Agricultural light only affects farm production", AgriculturalLightOnlyAffectsFarmProduction);
             Run("Continuous production pauses without conditions", ContinuousProductionPausesWithoutConditions);
             Run("Continuous production preserves pending output", ContinuousProductionPreservesPendingOutput);
@@ -77,6 +81,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Remote continuous production uses server authority", RemoteContinuousProductionUsesServerAuthority);
             Run("Remote farm light uses server authority", RemoteFarmLightUsesServerAuthority);
             Run("Remote farm night light uses server authority", RemoteFarmNightLightUsesServerAuthority);
+            Run("Remote farm sunlamp fuel uses server authority", RemoteFarmSunlampFuelUsesServerAuthority);
             Run("Definition sealing rejects broken cross references", DefinitionSealingRejectsBrokenReferences);
             Run("Definition sealing accepts complete content module", DefinitionSealingAcceptsCompleteModule);
             Run("Runtime composition registers every core command system", RuntimeCompositionRegistersCoreSystems);
@@ -589,7 +594,7 @@ namespace WenMingBlocks.Runtime.Tests
 
             GameState migrated = saves.Deserialize(saves.Serialize(legacy));
 
-            AssertEqual("2.8", migrated.SaveVersion, "Legacy difficulty save must upgrade to 2.8.");
+            AssertEqual("2.9", migrated.SaveVersion, "Legacy difficulty save must upgrade to 2.9.");
             AssertEqual(DifficultyIds.Normal, migrated.Difficulty.DifficultyId, "Legacy save must default to normal difficulty.");
         }
 
@@ -935,7 +940,7 @@ namespace WenMingBlocks.Runtime.Tests
             legacy.Resources.SharedCapacity = 0;
             JsonSerializerOptions options = SaveSystem.CreateDefaultJsonOptions();
             GameState migrated = new SaveSystem(options).Deserialize(JsonSerializer.Serialize(legacy, options));
-            AssertEqual("2.8", migrated.SaveVersion, "Version 2.4 must migrate to 2.8.");
+            AssertEqual("2.9", migrated.SaveVersion, "Version 2.4 must migrate to 2.9.");
             AssertEqual(2000, migrated.Resources.SharedCapacity,
                 "Legacy saves must receive the authoritative base shared capacity.");
         }
@@ -1271,6 +1276,116 @@ namespace WenMingBlocks.Runtime.Tests
                 "Night half-day production must leave the unused half-day irrigation coverage.");
         }
 
+        private static void FarmLightSunlampConsumesFuelCoverage()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            simulation.State.SimulationTick = DayNightCycle.TicksPerHalfDay;
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false, 1);
+
+            simulation.Tick(GameTime.TicksPerGameDay / 2);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            SunlampBuildingState sunlampRuntime = simulation.State.Sunlamps.Buildings["building:test:sunlamp"];
+            AssertEqual(4, GetLocalAmount(farm, CoreResourceIds.Food),
+                "Fueled sunlamp must allow night half-day production.");
+            AssertEqual(0, simulation.State.Resources.Items[CoreResourceIds.Fuel].Amount,
+                "Sunlamp must consume one fuel before providing one game day of coverage.");
+            AssertEqual(GameTime.TicksPerGameDay / 2, sunlampRuntime.FuelCoverageTicks,
+                "Night half-day coverage must leave half a day of prepaid sunlamp fuel.");
+        }
+
+        private static void FarmLightSharedSunlampChargesByTimeNotFarmCount()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 1, 20, 100, 0, 4);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            simulation.State.SimulationTick = DayNightCycle.TicksPerHalfDay;
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false, 1);
+
+            BuildingInstanceState secondFarm = CreateBuildingStateWithDefinition(
+                "building:test:continuous_second",
+                CoreBuildingIds.Farm,
+                "plot:test:continuous",
+                1,
+                1,
+                0,
+                1,
+                1,
+                1);
+            secondFarm.Durability = 500;
+            secondFarm.LocalInventoryCapacity = 20;
+            simulation.State.Buildings.Instances.Add(secondFarm.BuildingId, secondFarm);
+            simulation.State.Npcs.Instances["npc:test:continuous_second"] = new NpcInstanceState
+            {
+                NpcId = "npc:test:continuous_second",
+                OwnerPlayerId = "player:test:continuous",
+                CreationSequence = 2
+            };
+            simulation.State.Npcs.WorkAssignments["npc:test:continuous_second"] = new WorkAssignmentState
+            {
+                NpcId = "npc:test:continuous_second",
+                BuildingId = secondFarm.BuildingId,
+                SlotIndex = 0
+            };
+
+            simulation.Tick(GameTime.TicksPerGameDay / 2);
+
+            BuildingInstanceState firstFarm = simulation.State.Buildings.Instances["building:test:continuous"];
+            SunlampBuildingState sunlampRuntime = simulation.State.Sunlamps.Buildings["building:test:sunlamp"];
+            AssertEqual(2, GetLocalAmount(firstFarm, CoreResourceIds.Food),
+                "First farm must receive the shared sunlamp coverage for the night half-day.");
+            AssertEqual(2, GetLocalAmount(secondFarm, CoreResourceIds.Food),
+                "Second farm must receive the same shared sunlamp coverage for the night half-day.");
+            AssertEqual(GameTime.TicksPerGameDay / 2, sunlampRuntime.FuelCoverageTicks,
+                "One sunlamp covering two farms in the same tick must spend coverage by time, not farm count.");
+            AssertEqual(0, simulation.State.Resources.Items[CoreResourceIds.Fuel].Amount,
+                "Shared sunlamp coverage must still consume exactly one fuel prepayment.");
+        }
+
+        private static void FarmLightUnfueledSunlampDoesNotRestoreNightProduction()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            simulation.State.SimulationTick = DayNightCycle.TicksPerHalfDay;
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false, 0);
+
+            simulation.Tick(GameTime.TicksPerGameDay / 2);
+
+            BuildingInstanceState farm = simulation.State.Buildings.Instances["building:test:continuous"];
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings[farm.BuildingId];
+            AssertEqual(ContinuousProductionStatuses.PausedNoLight, runtime.Status,
+                "Unfueled sunlamp must not restore night farm production.");
+            AssertEqual(0, GetLocalAmount(farm, CoreResourceIds.Food),
+                "Unfueled sunlamp must not allow night output.");
+            AssertTrue(!simulation.State.Sunlamps.Buildings.ContainsKey("building:test:sunlamp"),
+                "Unfueled unused sunlamp must not create prepaid coverage state.");
+        }
+
+        private static void FarmLightSunlampFuelSurvivesSaveRoundTrip()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            simulation.State.SimulationTick = DayNightCycle.TicksPerHalfDay;
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false, 1);
+            simulation.Tick(GameTime.TicksPerGameDay / 2);
+
+            SaveSystem saves = new SaveSystem();
+            GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
+
+            AssertEqual("2.9", loaded.SaveVersion, "Sunlamp fuel state requires save version 2.9.");
+            AssertEqual(GameTime.TicksPerGameDay / 2,
+                loaded.Sunlamps.Buildings["building:test:sunlamp"].FuelCoverageTicks,
+                "Sunlamp prepaid fuel coverage must survive save load.");
+            AssertEqual(StateDiagnostics.CalculateStateHash(simulation.State),
+                StateDiagnostics.CalculateStateHash(loaded),
+                "Sunlamp fuel state must participate in StateHash.");
+        }
+
         private static void AgriculturalLightOnlyAffectsFarmProduction()
         {
             Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.TreeFarm, 1, 20, 100, 0, 0);
@@ -1355,7 +1470,7 @@ namespace WenMingBlocks.Runtime.Tests
             ContinuousProductionBuildingState after =
                 loaded.ContinuousProduction.Buildings["building:test:continuous"];
 
-            AssertEqual("2.8", loaded.SaveVersion, "Continuous production requires save version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "Continuous production requires save version 2.9.");
             AssertEqual(before.ProgressUnits, after.ProgressUnits, "Fractional progress must survive save load.");
             AssertEqual(before.PendingOutputAmount, after.PendingOutputAmount, "Pending output must survive save load.");
             AssertEqual(before.Status, after.Status, "Continuous production status must survive save load.");
@@ -1429,7 +1544,7 @@ namespace WenMingBlocks.Runtime.Tests
             AssertEqual(before.AdditionalProgressUnits[CoreResourceIds.Stone],
                 after.AdditionalProgressUnits[CoreResourceIds.Stone],
                 "Stone byproduct progress must survive save load.");
-            AssertEqual("2.8", loaded.SaveVersion, "Byproduct state requires save version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "Byproduct state requires save version 2.9.");
         }
 
         private static void SaveMigrationInitializesContinuousByproducts()
@@ -1460,7 +1575,7 @@ namespace WenMingBlocks.Runtime.Tests
             ContinuousProductionBuildingState runtime =
                 migrated.ContinuousProduction.Buildings["building:test:legacy"];
 
-            AssertEqual("2.8", migrated.SaveVersion, "Version 2.3 must migrate to 2.8.");
+            AssertEqual("2.9", migrated.SaveVersion, "Version 2.3 must migrate to 2.9.");
             AssertEqual(0, runtime.AdditionalProgressUnits.Count,
                 "Legacy saves must initialize empty byproduct progress.");
             AssertEqual(0, runtime.AdditionalPendingOutputs.Count,
@@ -1541,6 +1656,36 @@ namespace WenMingBlocks.Runtime.Tests
                 "Remote must synchronize the server-authoritative night no-light status.");
             AssertEqual(server.CurrentState.SimulationTick, remote.CurrentState.SimulationTick,
                 "Remote farm night light synchronization must use authoritative server time.");
+        }
+
+        private static void RemoteFarmSunlampFuelUsesServerAuthority()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            simulation.State.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
+            simulation.State.SimulationTick = DayNightCycle.TicksPerHalfDay;
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false, 1);
+            ServerGameSession server = new ServerGameSession(simulation, new[] { "player:test:continuous" });
+            RemoteGameSession remote = CreateRemoteSession(server);
+
+            remote.Tick(GameTime.TicksPerGameDay / 2);
+            AssertTrue(!remote.CurrentState.Sunlamps.Buildings.ContainsKey("building:test:sunlamp"),
+                "Remote tick must not consume sunlamp fuel locally.");
+            server.Tick(GameTime.TicksPerGameDay / 2);
+            remote.Tick(1);
+
+            BuildingInstanceState remoteFarm =
+                remote.CurrentState.Buildings.Instances["building:test:continuous"];
+            AssertEqual(4, GetLocalAmount(remoteFarm, CoreResourceIds.Food),
+                "Remote must receive server-authoritative fueled night production.");
+            AssertEqual(0, remote.CurrentState.Resources.Items[CoreResourceIds.Fuel].Amount,
+                "Remote must receive server-authoritative sunlamp fuel consumption.");
+            AssertEqual(GameTime.TicksPerGameDay / 2,
+                remote.CurrentState.Sunlamps.Buildings["building:test:sunlamp"].FuelCoverageTicks,
+                "Remote must receive server-authoritative sunlamp fuel coverage.");
+            AssertEqual(StateDiagnostics.CalculateStateHash(server.CurrentState),
+                StateDiagnostics.CalculateStateHash(remote.CurrentState),
+                "Sunlamp fuel state must remain server authoritative.");
         }
 
         private static void DefinitionSealingRejectsBrokenReferences()
@@ -1697,7 +1842,7 @@ namespace WenMingBlocks.Runtime.Tests
             GameState migrated = saves.Deserialize(saves.Serialize(legacy));
             BuildingInstanceState instance = migrated.Buildings.Instances["building:core:legacy"];
 
-            AssertEqual("2.8", migrated.SaveVersion, "Legacy save must upgrade to version 2.8.");
+            AssertEqual("2.9", migrated.SaveVersion, "Legacy save must upgrade to version 2.9.");
             AssertEqual(7, instance.AnchorX, "Legacy placement must inherit plot X.");
             AssertEqual(-3, instance.AnchorY, "Legacy placement must inherit plot Y.");
             AssertEqual(5, instance.BaseLayer, "Legacy layer must migrate to base layer.");
@@ -2468,7 +2613,7 @@ namespace WenMingBlocks.Runtime.Tests
             GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
             BuildingInstanceState upper = loaded.Buildings.Instances["building:core:000000000002"];
 
-            AssertEqual("2.8", loaded.SaveVersion, "Structural incident save must use version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "Structural incident save must use version 2.9.");
             AssertEqual(BuildingStructuralStatuses.Grace, upper.StructuralStatus, "Grace status must survive save round trip.");
             AssertEqual(
                 simulation.State.Buildings.Instances["building:core:000000000002"].StructuralGraceDeadlineTick,
@@ -2712,7 +2857,7 @@ namespace WenMingBlocks.Runtime.Tests
             SaveSystem saves = new SaveSystem();
             GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
 
-            AssertEqual("2.8", loaded.SaveVersion, "Worker assignment save must use version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "Worker assignment save must use version 2.9.");
             AssertEqual("building:core:work_a", loaded.Npcs.WorkAssignments["npc:core:000001"].BuildingId,
                 "Worker assignment must survive save round trip.");
             AssertEqual(StateDiagnostics.CalculateStateHash(simulation.State), StateDiagnostics.CalculateStateHash(loaded),
@@ -2809,7 +2954,7 @@ namespace WenMingBlocks.Runtime.Tests
             SaveSystem saves = new SaveSystem();
             GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
 
-            AssertEqual("2.8", loaded.SaveVersion, "Housing requires save version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "Housing requires save version 2.9.");
             AssertEqual(3, loaded.Housing.AssignmentsByNpcId.Count, "Housing assignments must survive save load.");
             AssertEqual(StateDiagnostics.CalculateStateHash(simulation.State), StateDiagnostics.CalculateStateHash(loaded),
                 "Housing state hash must survive save round trip.");
@@ -2925,7 +3070,7 @@ namespace WenMingBlocks.Runtime.Tests
             simulation.Tick(GameTime.TicksPerGameDay * 3);
             SaveSystem saves = new SaveSystem();
             GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
-            AssertEqual("2.8", loaded.SaveVersion, "NPC lifecycle requires save version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "NPC lifecycle requires save version 2.9.");
             AssertEqual(simulation.State.Npcs.Instances["npc:core:lifecycle"].LifeStageElapsedTicks,
                 loaded.Npcs.Instances["npc:core:lifecycle"].LifeStageElapsedTicks,
                 "Lifecycle age must survive save load.");
@@ -3003,7 +3148,7 @@ namespace WenMingBlocks.Runtime.Tests
             simulation.Tick(GameTime.TicksPerGameDay);
             SaveSystem saves = new SaveSystem();
             GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
-            AssertEqual("2.8", loaded.SaveVersion, "NPC survival requires save version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "NPC survival requires save version 2.9.");
             AssertEqual(simulation.State.Survival.FoodRemainderQuarterUnits, loaded.Survival.FoodRemainderQuarterUnits,
                 "Fractional food demand must survive save load.");
             AssertEqual(StateDiagnostics.CalculateStateHash(simulation.State), StateDiagnostics.CalculateStateHash(loaded),
@@ -3166,7 +3311,7 @@ namespace WenMingBlocks.Runtime.Tests
             SaveSystem saves = new SaveSystem();
             GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
             ProductionSlotState slot = GetProducerSlot(loaded);
-            AssertEqual("2.8", loaded.SaveVersion, "Production save must use version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "Production save must use version 2.9.");
             AssertEqual(4L, slot.ProgressWorkTicks, "Active production progress must survive save load.");
             AssertEqual(2, loaded.Resources.Items["resource:core:ore"].LockedAmount,
                 "Active production locks must survive save load.");
@@ -3341,7 +3486,7 @@ namespace WenMingBlocks.Runtime.Tests
         {
             GameState legacy = new GameState { SaveVersion = "2.7" };
             GameState migrated = new SaveSystem().Deserialize(new SaveSystem().Serialize(legacy));
-            AssertEqual("2.8", migrated.SaveVersion, "Version 2.7 must migrate to 2.8.");
+            AssertEqual("2.9", migrated.SaveVersion, "Version 2.7 must migrate to 2.9.");
 
             ServerGameSession server = new ServerGameSession(
                 CreateFertilizerSimulation(1), new[] { "player:test:fertilizer" });
@@ -3427,7 +3572,7 @@ namespace WenMingBlocks.Runtime.Tests
             };
             SaveSystem saves = new SaveSystem();
             GameState migrated = saves.Deserialize(saves.Serialize(legacy));
-            AssertEqual("2.8", migrated.SaveVersion, "Version 2.6 must migrate to 2.8.");
+            AssertEqual("2.9", migrated.SaveVersion, "Version 2.6 must migrate to 2.9.");
             AssertEqual(10000, migrated.Npcs.Instances["npc:test:legacy_satisfaction"].BaseSatisfactionBasisPoints,
                 "Legacy NPCs must receive neutral base satisfaction.");
 
@@ -3544,7 +3689,7 @@ namespace WenMingBlocks.Runtime.Tests
             };
             legacy.Survival.NextSettlementTick = GameTime.TicksPerGameDay * 2;
             GameState migrated = saves.Deserialize(saves.Serialize(legacy));
-            AssertEqual("2.8", migrated.SaveVersion, "Version 2.5 must migrate to 2.8.");
+            AssertEqual("2.9", migrated.SaveVersion, "Version 2.5 must migrate to 2.9.");
             AssertEqual(GameTime.TicksPerGameDay * 2, migrated.Waste.NextSettlementTick,
                 "Migration must schedule waste after the current day boundary.");
 
@@ -3839,7 +3984,7 @@ namespace WenMingBlocks.Runtime.Tests
 
             SaveSystem saves = new SaveSystem();
             GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
-            AssertEqual("2.8", loaded.SaveVersion, "Logistics save must use version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "Logistics save must use version 2.9.");
             AssertEqual(1, loaded.Logistics.ActiveTasks.Count, "Active transport must survive save load.");
             AssertEqual(3, GetLocalWood(loaded, "building:core:source").LockedAmount,
                 "Transport source lock must survive save load.");
@@ -4023,7 +4168,7 @@ namespace WenMingBlocks.Runtime.Tests
 
             SaveSystem saves = new SaveSystem();
             GameState loaded = saves.Deserialize(saves.Serialize(simulation.State));
-            AssertEqual("2.8", loaded.SaveVersion, "Connector save must use version 2.8.");
+            AssertEqual("2.9", loaded.SaveVersion, "Connector save must use version 2.9.");
             AssertEqual(1, loaded.Logistics.Connectors.Count, "Completed connector must survive save load.");
             AssertEqual(1, loaded.Logistics.Routes.Count, "Connector route must survive save load.");
             AssertEqual(1, loaded.Logistics.ActiveTasks.Count, "Automatic in-flight task must survive save load.");
@@ -5251,7 +5396,7 @@ namespace WenMingBlocks.Runtime.Tests
             simulation.State.Buildings.Instances[occluder.BuildingId] = occluder;
         }
 
-        private static void AddSunlamp(Simulation simulation, bool destroyed)
+        private static void AddSunlamp(Simulation simulation, bool destroyed, int fuelAmount = 10)
         {
             BuildingInstanceState sunlamp = CreateBuildingStateWithDefinition(
                 "building:test:sunlamp",
@@ -5269,6 +5414,15 @@ namespace WenMingBlocks.Runtime.Tests
                 ? BuildingStructuralStatuses.Disabled
                 : BuildingStructuralStatuses.Normal;
             simulation.State.Buildings.Instances[sunlamp.BuildingId] = sunlamp;
+            if (fuelAmount > 0)
+            {
+                simulation.State.Resources.Items[CoreResourceIds.Fuel] = new ResourceStack
+                {
+                    ResourceId = CoreResourceIds.Fuel,
+                    Amount = fuelAmount,
+                    Capacity = 100
+                };
+            }
         }
 
         private static int GetLocalAmount(BuildingInstanceState building, string resourceId)

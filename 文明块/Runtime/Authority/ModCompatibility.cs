@@ -78,7 +78,7 @@ namespace WenMingBlocks.Runtime.Authority
 
     public sealed class SessionCompatibilityProfile
     {
-        public const string CurrentProtocolVersion = "20";
+        public const string CurrentProtocolVersion = "21";
 
         private readonly ReadOnlyCollection<ModFingerprint> _mods;
 
