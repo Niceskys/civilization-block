@@ -511,7 +511,10 @@ namespace WenMingBlocks.Runtime.Authority
                     !state.Buildings.Instances.ContainsKey(task.UpperBuildingId))
                 {
                     AddError(issues, "logistics.connector_construction.invalid",
-                        $"Connector construction task {pair.Key} is invalid.");
+                        $"Connector construction task {pair.Key} is invalid.",
+                        GetLogisticsConnectorConstructionTargetIds(pair.Key, task),
+                        90,
+                        "logistics");
                 }
             }
 
@@ -525,7 +528,11 @@ namespace WenMingBlocks.Runtime.Authority
                     !state.Buildings.Instances.ContainsKey(connector.UpperBuildingId) ||
                     (!connector.IsDestroyed && !state.Logistics.Routes.ContainsKey(connector.RouteId)))
                 {
-                    AddError(issues, "logistics.connector.invalid", $"Logistics connector {pair.Key} is invalid.");
+                    AddError(issues, "logistics.connector.invalid",
+                        $"Logistics connector {pair.Key} is invalid.",
+                        GetLogisticsConnectorTargetIds(pair.Key, connector),
+                        90,
+                        "logistics");
                 }
             }
 
@@ -537,7 +544,11 @@ namespace WenMingBlocks.Runtime.Authority
                     !state.Buildings.Instances.ContainsKey(route.SecondBuildingId) ||
                     StringComparer.Ordinal.Equals(route.FirstBuildingId, route.SecondBuildingId))
                 {
-                    AddError(issues, "logistics.route.invalid", $"Logistics route {pair.Key} is invalid.");
+                    AddError(issues, "logistics.route.invalid",
+                        $"Logistics route {pair.Key} is invalid.",
+                        GetLogisticsRouteTargetIds(pair.Key, route),
+                        90,
+                        "logistics");
                 }
             }
 
@@ -551,13 +562,21 @@ namespace WenMingBlocks.Runtime.Authority
                     !IsDiagnosticEndpointValid(state, task.SourceKind, task.SourceBuildingId) ||
                     !IsDiagnosticEndpointValid(state, task.TargetKind, task.TargetBuildingId))
                 {
-                    AddError(issues, "logistics.task.invalid", $"Transport task {pair.Key} is invalid.");
+                    AddError(issues, "logistics.task.invalid",
+                        $"Transport task {pair.Key} is invalid.",
+                        GetLogisticsTaskTargetIds(pair.Key, task),
+                        90,
+                        "logistics");
                     continue;
                 }
 
                 if (!string.IsNullOrEmpty(task.RouteId) && !state.Logistics.Routes.ContainsKey(task.RouteId))
                 {
-                    AddError(issues, "logistics.task.route_missing", $"Transport task {pair.Key} references a missing route.");
+                    AddError(issues, "logistics.task.route_missing",
+                        $"Transport task {pair.Key} references a missing route.",
+                        GetLogisticsTaskTargetIds(pair.Key, task),
+                        85,
+                        "logistics");
                 }
             }
 
@@ -566,7 +585,11 @@ namespace WenMingBlocks.Runtime.Authority
                 if (stack != null && (stack.IncomingReservedAmount < 0 ||
                     (stack.IncomingReservedAmount > 0 && stack.Amount + stack.IncomingReservedAmount > stack.Capacity)))
                 {
-                    AddError(issues, "logistics.global_reservation.invalid", $"Resource {stack.ResourceId} has an invalid incoming reservation.");
+                    AddError(issues, "logistics.global_reservation.invalid",
+                        $"Resource {stack.ResourceId} has an invalid incoming reservation.",
+                        new[] { stack.ResourceId },
+                        85,
+                        "logistics");
                 }
             }
 
@@ -575,8 +598,93 @@ namespace WenMingBlocks.Runtime.Authority
                 if (building != null && (building.LocalInventoryReservedAmount < 0 ||
                     building.LocalInventory.Values.Sum(stack => stack.Amount) + building.LocalInventoryReservedAmount > building.LocalInventoryCapacity))
                 {
-                    AddError(issues, "logistics.local_reservation.invalid", $"Building {building.BuildingId} has an invalid local reservation.");
+                    AddError(issues, "logistics.local_reservation.invalid",
+                        $"Building {building.BuildingId} has an invalid local reservation.",
+                        new[] { building.BuildingId },
+                        85,
+                        "logistics");
                 }
+            }
+        }
+
+        private static IEnumerable<string> GetLogisticsConnectorConstructionTargetIds(
+            string fallbackId,
+            LogisticsConnectorConstructionState task)
+        {
+            List<string> ids = new List<string>();
+            AddTargetId(ids, task == null ? fallbackId : task.TaskId);
+            if (task != null)
+            {
+                AddTargetId(ids, task.ConnectorId);
+                AddTargetId(ids, task.LowerBuildingId);
+                AddTargetId(ids, task.UpperBuildingId);
+            }
+
+            return ids;
+        }
+
+        private static IEnumerable<string> GetLogisticsConnectorTargetIds(
+            string fallbackId,
+            LogisticsConnectorInstanceState connector)
+        {
+            List<string> ids = new List<string>();
+            AddTargetId(ids, connector == null ? fallbackId : connector.ConnectorId);
+            if (connector != null)
+            {
+                AddTargetId(ids, connector.RouteId);
+                AddTargetId(ids, connector.LowerBuildingId);
+                AddTargetId(ids, connector.UpperBuildingId);
+            }
+
+            return ids;
+        }
+
+        private static IEnumerable<string> GetLogisticsRouteTargetIds(
+            string fallbackId,
+            LogisticsRouteState route)
+        {
+            List<string> ids = new List<string>();
+            AddTargetId(ids, route == null ? fallbackId : route.RouteId);
+            if (route != null)
+            {
+                AddTargetId(ids, route.ConnectorId);
+                AddTargetId(ids, route.FirstBuildingId);
+                AddTargetId(ids, route.SecondBuildingId);
+            }
+
+            return ids;
+        }
+
+        private static IEnumerable<string> GetLogisticsTaskTargetIds(
+            string fallbackId,
+            TransportTaskState task)
+        {
+            List<string> ids = new List<string>();
+            AddTargetId(ids, task == null ? fallbackId : task.TaskId);
+            if (task != null)
+            {
+                AddTargetId(ids, task.RouteId);
+                if (StringComparer.Ordinal.Equals(task.SourceKind, LogisticsEndpointKinds.Building))
+                {
+                    AddTargetId(ids, task.SourceBuildingId);
+                }
+
+                if (StringComparer.Ordinal.Equals(task.TargetKind, LogisticsEndpointKinds.Building))
+                {
+                    AddTargetId(ids, task.TargetBuildingId);
+                }
+
+                AddTargetId(ids, task.ResourceId);
+            }
+
+            return ids;
+        }
+
+        private static void AddTargetId(List<string> ids, string id)
+        {
+            if (!string.IsNullOrWhiteSpace(id) && !ids.Contains(id, StringComparer.Ordinal))
+            {
+                ids.Add(id);
             }
         }
 

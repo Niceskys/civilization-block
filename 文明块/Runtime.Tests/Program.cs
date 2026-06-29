@@ -218,6 +218,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("State diagnostics reports sunlamp fuel target", StateDiagnosticsReportsSunlampFuelTarget);
             Run("State diagnostics reports continuous production targets", StateDiagnosticsReportsContinuousProductionTargets);
             Run("State diagnostics reports batch production targets", StateDiagnosticsReportsBatchProductionTargets);
+            Run("State diagnostics reports logistics targets", StateDiagnosticsReportsLogisticsTargets);
             Run("Remote preserves structural rejection code", RemotePreservesStructuralRejectionCode);
             Run("EventStream publishes event and triggers callback", EventStreamPublishesEventAndTriggersCallback);
             Run("Server session rejects unauthorized player", ServerSessionRejectsUnauthorizedPlayer);
@@ -5102,6 +5103,45 @@ namespace WenMingBlocks.Runtime.Tests
                 "Production diagnostic must expose stable display priority.");
             AssertEqual("production", issue.SourceSystem,
                 "Production diagnostic must expose its source system.");
+            AssertEqual(beforeHash, afterHash,
+                "Diagnostic display metadata must not mutate authoritative state hash.");
+        }
+
+        private static void StateDiagnosticsReportsLogisticsTargets()
+        {
+            Simulation simulation = CreateLogisticsSimulation(targetLayer: 2, addRoute: true);
+            LocalGameSession session = new LocalGameSession(simulation);
+            CommandResult result = session.SendCommand(CreateTransportCommand(
+                "command:core:diagnostic_transport",
+                "player:core:local",
+                1,
+                LogisticsEndpointKinds.Building, "building:core:source",
+                LogisticsEndpointKinds.Building, "building:core:target", 3));
+            AssertTrue(result.Accepted, "Expected diagnostic transport setup to succeed.");
+
+            TransportTaskState task = simulation.State.Logistics.ActiveTasks.Values.Single();
+            simulation.State.Logistics.Routes.Remove(task.RouteId);
+
+            string beforeHash = StateDiagnostics.CalculateStateHash(simulation.State);
+            IReadOnlyList<DiagnosticIssue> issues =
+                StateDiagnostics.CheckInvariants(simulation.State, RuntimeComposition.CreateDefinitions());
+            string afterHash = StateDiagnostics.CalculateStateHash(simulation.State);
+
+            DiagnosticIssue issue = issues.Single(item => item.Code == "logistics.task.route_missing");
+            AssertTrue(issue.TargetIds.Contains(task.TaskId),
+                "Logistics diagnostic must expose the transport task target id.");
+            AssertTrue(issue.TargetIds.Contains(task.RouteId),
+                "Logistics diagnostic must expose the missing route target id.");
+            AssertTrue(issue.TargetIds.Contains("building:core:source"),
+                "Logistics diagnostic must expose the source building target id.");
+            AssertTrue(issue.TargetIds.Contains("building:core:target"),
+                "Logistics diagnostic must expose the target building target id.");
+            AssertTrue(issue.TargetIds.Contains(CoreResourceIds.Wood),
+                "Logistics diagnostic must expose the resource target id.");
+            AssertEqual(85, issue.Priority.GetValueOrDefault(),
+                "Logistics diagnostic must expose stable display priority.");
+            AssertEqual("logistics", issue.SourceSystem,
+                "Logistics diagnostic must expose its source system.");
             AssertEqual(beforeHash, afterHash,
                 "Diagnostic display metadata must not mutate authoritative state hash.");
         }
