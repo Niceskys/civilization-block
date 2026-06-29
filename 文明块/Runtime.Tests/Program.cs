@@ -217,6 +217,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("State diagnostics reports farm missing light", StateDiagnosticsReportsFarmMissingLight);
             Run("State diagnostics reports sunlamp fuel target", StateDiagnosticsReportsSunlampFuelTarget);
             Run("State diagnostics reports continuous production targets", StateDiagnosticsReportsContinuousProductionTargets);
+            Run("State diagnostics reports batch production targets", StateDiagnosticsReportsBatchProductionTargets);
             Run("Remote preserves structural rejection code", RemotePreservesStructuralRejectionCode);
             Run("EventStream publishes event and triggers callback", EventStreamPublishesEventAndTriggersCallback);
             Run("Server session rejects unauthorized player", ServerSessionRejectsUnauthorizedPlayer);
@@ -5056,6 +5057,51 @@ namespace WenMingBlocks.Runtime.Tests
                 "Continuous production diagnostic must expose stable display priority.");
             AssertEqual("continuous_production", issue.SourceSystem,
                 "Continuous production diagnostic must expose its source system.");
+            AssertEqual(beforeHash, afterHash,
+                "Diagnostic display metadata must not mutate authoritative state hash.");
+        }
+
+        private static void StateDiagnosticsReportsBatchProductionTargets()
+        {
+            Simulation simulation = CreateProductionSimulation();
+            ProductionSlotState slot = new ProductionSlotState
+            {
+                BuildingId = "building:core:producer",
+                Status = ProductionSlotStatuses.OutputPending
+            };
+            slot.OutputBuffer[CoreResourceIds.IronIngot] = 1;
+            simulation.State.Production.SlotsByBuildingId[slot.BuildingId] = slot;
+
+            AssertProductionDiagnostic(simulation, "production.output_pending", 80);
+
+            slot.Status = ProductionSlotStatuses.Paused;
+            slot.OutputBuffer.Clear();
+            slot.ActiveBatchId = "batch:test:paused";
+            slot.RequiredWorkTicks = 10;
+            slot.ProgressWorkTicks = 5;
+
+            AssertProductionDiagnostic(simulation, "production.paused", 60);
+        }
+
+        private static void AssertProductionDiagnostic(
+            Simulation simulation,
+            string expectedCode,
+            int expectedPriority)
+        {
+            string beforeHash = StateDiagnostics.CalculateStateHash(simulation.State);
+            IReadOnlyList<DiagnosticIssue> issues =
+                StateDiagnostics.CheckInvariants(simulation.State, new DefinitionRegistry());
+            string afterHash = StateDiagnostics.CalculateStateHash(simulation.State);
+
+            DiagnosticIssue issue = issues.Single(item =>
+                item.Code == expectedCode &&
+                item.Severity == DiagnosticSeverity.Info);
+            AssertEqual("building:core:producer", issue.TargetIds.Single(),
+                "Production diagnostic must expose the building target id.");
+            AssertEqual(expectedPriority, issue.Priority.GetValueOrDefault(),
+                "Production diagnostic must expose stable display priority.");
+            AssertEqual("production", issue.SourceSystem,
+                "Production diagnostic must expose its source system.");
             AssertEqual(beforeHash, afterHash,
                 "Diagnostic display metadata must not mutate authoritative state hash.");
         }

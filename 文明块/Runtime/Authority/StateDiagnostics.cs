@@ -345,6 +345,27 @@ namespace WenMingBlocks.Runtime.Authority
                 {
                     AddError(issues, "production.output.status_invalid", $"Production slot {pair.Key} buffer requires output-pending status.");
                 }
+
+                if (StringComparer.Ordinal.Equals(slot.Status, ProductionSlotStatuses.OutputPending))
+                {
+                    AddInfo(
+                        issues,
+                        "production.output_pending",
+                        $"Production slot {pair.Key} has output waiting for transfer.",
+                        new[] { pair.Key },
+                        80,
+                        "production");
+                }
+                else if (StringComparer.Ordinal.Equals(slot.Status, ProductionSlotStatuses.Paused))
+                {
+                    AddInfo(
+                        issues,
+                        "production.paused",
+                        $"Production slot {pair.Key} is paused.",
+                        new[] { pair.Key },
+                        60,
+                        "production");
+                }
             }
         }
 
