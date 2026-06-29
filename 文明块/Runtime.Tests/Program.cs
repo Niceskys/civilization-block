@@ -213,6 +213,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("State diagnostics reports unsupported structure", StateDiagnosticsReportsUnsupportedStructure);
             Run("State diagnostics reports structural overload", StateDiagnosticsReportsStructuralOverload);
             Run("State diagnostics reports farm missing light", StateDiagnosticsReportsFarmMissingLight);
+            Run("State diagnostics reports sunlamp fuel target", StateDiagnosticsReportsSunlampFuelTarget);
             Run("Remote preserves structural rejection code", RemotePreservesStructuralRejectionCode);
             Run("EventStream publishes event and triggers callback", EventStreamPublishesEventAndTriggersCallback);
             Run("Server session rejects unauthorized player", ServerSessionRejectsUnauthorizedPlayer);
@@ -4865,13 +4866,51 @@ namespace WenMingBlocks.Runtime.Tests
             AddLightOccluder(simulation);
             simulation.Tick(GameTime.TicksPerGameDay);
 
+            string beforeHash = StateDiagnostics.CalculateStateHash(simulation.State);
             IReadOnlyList<DiagnosticIssue> issues =
                 StateDiagnostics.CheckInvariants(simulation.State, RuntimeComposition.CreateDefinitions());
+            string afterHash = StateDiagnostics.CalculateStateHash(simulation.State);
 
-            AssertTrue(issues.Any(issue =>
-                    issue.Code == "continuous_production.farm.no_light" &&
-                    issue.Severity == DiagnosticSeverity.Info),
-                "Diagnostics must expose farm no-light pauses as information.");
+            DiagnosticIssue issue = issues.Single(item =>
+                item.Code == "continuous_production.farm.no_light" &&
+                item.Severity == DiagnosticSeverity.Info);
+            AssertEqual("building:test:continuous", issue.TargetIds.Single(),
+                "Farm no-light diagnostic must expose the farm target id.");
+            AssertEqual(100, issue.Priority.GetValueOrDefault(),
+                "Farm no-light diagnostic must expose stable display priority.");
+            AssertEqual("continuous_production", issue.SourceSystem,
+                "Farm no-light diagnostic must expose its source system.");
+            AssertEqual(beforeHash, afterHash,
+                "Diagnostic display metadata must not mutate authoritative state hash.");
+        }
+
+        private static void StateDiagnosticsReportsSunlampFuelTarget()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.Farm, 2, 20, 100, 0, 2);
+            ExtendContinuousPlotForLight(simulation);
+            AddSunlamp(simulation, false, 0);
+            simulation.State.Sunlamps.Buildings["building:test:sunlamp"] = new SunlampBuildingState
+            {
+                BuildingId = "building:test:sunlamp",
+                FuelCoverageTicks = 0
+            };
+
+            string beforeHash = StateDiagnostics.CalculateStateHash(simulation.State);
+            IReadOnlyList<DiagnosticIssue> issues =
+                StateDiagnostics.CheckInvariants(simulation.State, RuntimeComposition.CreateDefinitions());
+            string afterHash = StateDiagnostics.CalculateStateHash(simulation.State);
+
+            DiagnosticIssue issue = issues.Single(item =>
+                item.Code == "sunlamp.fuel.empty" &&
+                item.Severity == DiagnosticSeverity.Info);
+            AssertEqual("building:test:sunlamp", issue.TargetIds.Single(),
+                "Sunlamp empty-fuel diagnostic must expose the sunlamp target id.");
+            AssertEqual(90, issue.Priority.GetValueOrDefault(),
+                "Sunlamp empty-fuel diagnostic must expose stable display priority.");
+            AssertEqual("sunlamp", issue.SourceSystem,
+                "Sunlamp empty-fuel diagnostic must expose its source system.");
+            AssertEqual(beforeHash, afterHash,
+                "Diagnostic display metadata must not mutate authoritative state hash.");
         }
 
         private static void RemotePreservesStructuralRejectionCode()

@@ -19,6 +19,9 @@ namespace WenMingBlocks.Runtime.Authority
         public DiagnosticSeverity Severity { get; set; }
         public string Code { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
+        public List<string> TargetIds { get; set; } = new List<string>();
+        public int? Priority { get; set; }
+        public string SourceSystem { get; set; } = string.Empty;
     }
 
     public static class StateDiagnostics
@@ -380,7 +383,10 @@ namespace WenMingBlocks.Runtime.Authority
                     StringComparer.Ordinal.Equals(runtime.Status, ContinuousProductionStatuses.PausedNoLight))
                 {
                     AddInfo(issues, "continuous_production.farm.no_light",
-                        $"Farm {pair.Key} is paused because required agricultural light is missing.");
+                        $"Farm {pair.Key} is paused because required agricultural light is missing.",
+                        new[] { pair.Key },
+                        100,
+                        "continuous_production");
                 }
             }
         }
@@ -416,7 +422,10 @@ namespace WenMingBlocks.Runtime.Authority
                 if (BuildingOperationalRules.IsOperational(building) && runtime.FuelCoverageTicks == 0)
                 {
                     AddInfo(issues, "sunlamp.fuel.empty",
-                        $"Sunlamp {pair.Key} has no prepaid fuel coverage.");
+                        $"Sunlamp {pair.Key} has no prepaid fuel coverage.",
+                        new[] { pair.Key },
+                        90,
+                        "sunlamp");
                 }
             }
         }
@@ -995,17 +1004,42 @@ namespace WenMingBlocks.Runtime.Authority
 
         private static void AddError(List<DiagnosticIssue> issues, string code, string message)
         {
-            issues.Add(new DiagnosticIssue { Severity = DiagnosticSeverity.Error, Code = code, Message = message });
+            issues.Add(CreateIssue(DiagnosticSeverity.Error, code, message, null, null, null));
         }
 
         private static void AddWarning(List<DiagnosticIssue> issues, string code, string message)
         {
-            issues.Add(new DiagnosticIssue { Severity = DiagnosticSeverity.Warning, Code = code, Message = message });
+            issues.Add(CreateIssue(DiagnosticSeverity.Warning, code, message, null, null, null));
         }
 
-        private static void AddInfo(List<DiagnosticIssue> issues, string code, string message)
+        private static void AddInfo(
+            List<DiagnosticIssue> issues,
+            string code,
+            string message,
+            IEnumerable<string> targetIds = null,
+            int? priority = null,
+            string sourceSystem = null)
         {
-            issues.Add(new DiagnosticIssue { Severity = DiagnosticSeverity.Info, Code = code, Message = message });
+            issues.Add(CreateIssue(DiagnosticSeverity.Info, code, message, targetIds, priority, sourceSystem));
+        }
+
+        private static DiagnosticIssue CreateIssue(
+            DiagnosticSeverity severity,
+            string code,
+            string message,
+            IEnumerable<string> targetIds,
+            int? priority,
+            string sourceSystem)
+        {
+            return new DiagnosticIssue
+            {
+                Severity = severity,
+                Code = code,
+                Message = message,
+                TargetIds = targetIds == null ? new List<string>() : targetIds.ToList(),
+                Priority = priority,
+                SourceSystem = sourceSystem ?? string.Empty
+            };
         }
 
         private static string ToHex(byte[] bytes)
