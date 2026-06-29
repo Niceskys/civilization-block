@@ -27,6 +27,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("StateDiagnostics reports negative resources", StateDiagnosticsReportsNegativeResources);
             Run("StateDiagnostics detects duplicate building layers", StateDiagnosticsDetectsDuplicateBuildingLayers);
             Run("StateDiagnostics handles empty state without exception", StateDiagnosticsHandlesEmptyState);
+            Run("StateDiagnostics reports local inventory target", StateDiagnosticsReportsLocalInventoryTarget);
             Run("Game time resolves pause and speed deterministically", GameTimeResolvesPauseAndSpeedDeterministically);
             Run("Day night cycle derives phase from simulation tick", DayNightCycleDerivesPhaseFromSimulationTick);
             Run("Difficulty profiles resolve structural timings", DifficultyProfilesResolveStructuralTimings);
@@ -505,6 +506,51 @@ namespace WenMingBlocks.Runtime.Tests
 
             string hash = StateDiagnostics.CalculateStateHash(state);
             AssertFalse(string.IsNullOrWhiteSpace(hash), "Expected non-empty state hash for empty state.");
+        }
+
+        private static void StateDiagnosticsReportsLocalInventoryTarget()
+        {
+            GameState state = new GameState();
+            state.World.Plots["plot:test:inventory"] = new PlotState
+            {
+                PlotId = "plot:test:inventory",
+                Width = 1,
+                Depth = 1,
+                MaxStackLayers = 1
+            };
+            BuildingInstanceState building = CreateBuildingStateWithDefinition(
+                "building:test:inventory_full",
+                CoreBuildingIds.Warehouse,
+                "plot:test:inventory",
+                0,
+                0,
+                0,
+                1,
+                1,
+                1);
+            building.Durability = 400;
+            building.LocalInventoryCapacity = 1;
+            building.LocalInventory[CoreResourceIds.Wood] = new LocalResourceStack
+            {
+                ResourceId = CoreResourceIds.Wood,
+                Amount = 2
+            };
+            state.Buildings.Instances[building.BuildingId] = building;
+
+            string beforeHash = StateDiagnostics.CalculateStateHash(state);
+            IReadOnlyList<DiagnosticIssue> issues =
+                StateDiagnostics.CheckInvariants(state, RuntimeComposition.CreateDefinitions());
+            string afterHash = StateDiagnostics.CalculateStateHash(state);
+
+            DiagnosticIssue issue = issues.Single(item => item.Code == "building.local_inventory.over_capacity");
+            AssertEqual("building:test:inventory_full", issue.TargetIds.Single(),
+                "Local inventory over-capacity diagnostic must expose the building target id.");
+            AssertEqual(85, issue.Priority.GetValueOrDefault(),
+                "Local inventory over-capacity diagnostic must expose stable display priority.");
+            AssertEqual("building_inventory", issue.SourceSystem,
+                "Local inventory over-capacity diagnostic must expose its source system.");
+            AssertEqual(beforeHash, afterHash,
+                "Diagnostic display metadata must not mutate authoritative state hash.");
         }
 
         private static void GameTimeResolvesPauseAndSpeedDeterministically()

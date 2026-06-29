@@ -286,7 +286,13 @@ namespace WenMingBlocks.Runtime.Authority
 
             if (total > building.LocalInventoryCapacity)
             {
-                AddError(issues, "building.local_inventory.over_capacity", $"Building {building.BuildingId} local inventory exceeds capacity.");
+                AddError(
+                    issues,
+                    "building.local_inventory.over_capacity",
+                    $"Building {building.BuildingId} local inventory exceeds capacity.",
+                    new[] { building.BuildingId },
+                    85,
+                    "building_inventory");
             }
         }
 
