@@ -388,6 +388,30 @@ namespace WenMingBlocks.Runtime.Authority
                         100,
                         "continuous_production");
                 }
+                else if (StringComparer.Ordinal.Equals(runtime.Status, ContinuousProductionStatuses.OutputPending))
+                {
+                    AddInfo(issues, "continuous_production.output_pending",
+                        $"Continuous production building {pair.Key} has output waiting for transfer.",
+                        new[] { pair.Key },
+                        80,
+                        "continuous_production");
+                }
+                else if (StringComparer.Ordinal.Equals(runtime.Status, ContinuousProductionStatuses.PausedInput))
+                {
+                    AddInfo(issues, "continuous_production.input_unavailable",
+                        $"Continuous production building {pair.Key} is paused because input resources are unavailable.",
+                        new[] { pair.Key },
+                        70,
+                        "continuous_production");
+                }
+                else if (StringComparer.Ordinal.Equals(runtime.Status, ContinuousProductionStatuses.PausedNoWorkers))
+                {
+                    AddInfo(issues, "continuous_production.no_workers",
+                        $"Continuous production building {pair.Key} is paused because no workers are assigned.",
+                        new[] { pair.Key },
+                        60,
+                        "continuous_production");
+                }
             }
         }
 

@@ -214,6 +214,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("State diagnostics reports structural overload", StateDiagnosticsReportsStructuralOverload);
             Run("State diagnostics reports farm missing light", StateDiagnosticsReportsFarmMissingLight);
             Run("State diagnostics reports sunlamp fuel target", StateDiagnosticsReportsSunlampFuelTarget);
+            Run("State diagnostics reports continuous production targets", StateDiagnosticsReportsContinuousProductionTargets);
             Run("Remote preserves structural rejection code", RemotePreservesStructuralRejectionCode);
             Run("EventStream publishes event and triggers callback", EventStreamPublishesEventAndTriggersCallback);
             Run("Server session rejects unauthorized player", ServerSessionRejectsUnauthorizedPlayer);
@@ -4909,6 +4910,58 @@ namespace WenMingBlocks.Runtime.Tests
                 "Sunlamp empty-fuel diagnostic must expose stable display priority.");
             AssertEqual("sunlamp", issue.SourceSystem,
                 "Sunlamp empty-fuel diagnostic must expose its source system.");
+            AssertEqual(beforeHash, afterHash,
+                "Diagnostic display metadata must not mutate authoritative state hash.");
+        }
+
+        private static void StateDiagnosticsReportsContinuousProductionTargets()
+        {
+            Simulation simulation = CreateContinuousProductionSimulation(CoreBuildingIds.TreeFarm, 1, 20, 100, 0, 0);
+            simulation.State.ContinuousProduction.Buildings["building:test:continuous"] =
+                new ContinuousProductionBuildingState { BuildingId = "building:test:continuous" };
+            ContinuousProductionBuildingState runtime =
+                simulation.State.ContinuousProduction.Buildings["building:test:continuous"];
+
+            runtime.Status = ContinuousProductionStatuses.OutputPending;
+            runtime.PendingOutputAmount = 1;
+            AssertContinuousProductionDiagnostic(
+                simulation,
+                "continuous_production.output_pending",
+                80);
+
+            runtime.Status = ContinuousProductionStatuses.PausedInput;
+            runtime.PendingOutputAmount = 0;
+            AssertContinuousProductionDiagnostic(
+                simulation,
+                "continuous_production.input_unavailable",
+                70);
+
+            runtime.Status = ContinuousProductionStatuses.PausedNoWorkers;
+            AssertContinuousProductionDiagnostic(
+                simulation,
+                "continuous_production.no_workers",
+                60);
+        }
+
+        private static void AssertContinuousProductionDiagnostic(
+            Simulation simulation,
+            string expectedCode,
+            int expectedPriority)
+        {
+            string beforeHash = StateDiagnostics.CalculateStateHash(simulation.State);
+            IReadOnlyList<DiagnosticIssue> issues =
+                StateDiagnostics.CheckInvariants(simulation.State, RuntimeComposition.CreateDefinitions());
+            string afterHash = StateDiagnostics.CalculateStateHash(simulation.State);
+
+            DiagnosticIssue issue = issues.Single(item =>
+                item.Code == expectedCode &&
+                item.Severity == DiagnosticSeverity.Info);
+            AssertEqual("building:test:continuous", issue.TargetIds.Single(),
+                "Continuous production diagnostic must expose the building target id.");
+            AssertEqual(expectedPriority, issue.Priority.GetValueOrDefault(),
+                "Continuous production diagnostic must expose stable display priority.");
+            AssertEqual("continuous_production", issue.SourceSystem,
+                "Continuous production diagnostic must expose its source system.");
             AssertEqual(beforeHash, afterHash,
                 "Diagnostic display metadata must not mutate authoritative state hash.");
         }
