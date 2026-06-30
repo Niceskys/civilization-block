@@ -133,6 +133,27 @@ namespace WenMingBlocks.Runtime.Authority
             return delta;
         }
 
+        public static IReadOnlyList<DiagnosticIssue> GetIssuesForTarget(
+            IEnumerable<DiagnosticIssue> issues,
+            string targetId)
+        {
+            if (issues == null)
+            {
+                throw new ArgumentNullException(nameof(issues));
+            }
+
+            if (string.IsNullOrWhiteSpace(targetId))
+            {
+                throw new ArgumentException("Target id cannot be empty.", nameof(targetId));
+            }
+
+            return issues
+                .Where(issue => issue != null &&
+                    issue.TargetIds != null &&
+                    issue.TargetIds.Contains(targetId, StringComparer.Ordinal))
+                .ToList();
+        }
+
         private static void CheckSaveMetadata(GameState state, List<DiagnosticIssue> issues)
         {
             if (string.IsNullOrWhiteSpace(state.SaveVersion))

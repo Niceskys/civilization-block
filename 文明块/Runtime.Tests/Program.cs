@@ -27,6 +27,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("StateDiagnostics reports negative resources", StateDiagnosticsReportsNegativeResources);
             Run("StateDiagnostics reports resource storage targets", StateDiagnosticsReportsResourceStorageTargets);
             Run("StateDiagnostics compares issue deltas", StateDiagnosticsComparesIssueDeltas);
+            Run("StateDiagnostics filters issues by target", StateDiagnosticsFiltersIssuesByTarget);
             Run("StateDiagnostics detects duplicate building layers", StateDiagnosticsDetectsDuplicateBuildingLayers);
             Run("StateDiagnostics handles empty state without exception", StateDiagnosticsHandlesEmptyState);
             Run("StateDiagnostics reports local inventory target", StateDiagnosticsReportsLocalInventoryTarget);
@@ -454,6 +455,41 @@ namespace WenMingBlocks.Runtime.Tests
                 "Resolved diagnostics should retain the previous issue details.");
             AssertEqual("resource.shared_capacity.exceeded", delta.Appeared.Single().Code,
                 "Appeared diagnostics should retain the current issue details.");
+        }
+
+        private static void StateDiagnosticsFiltersIssuesByTarget()
+        {
+            DiagnosticIssue farmIssue = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Info,
+                Code = "continuous_production.farm.no_light",
+                TargetIds = new List<string> { "building:core:farm" }
+            };
+            DiagnosticIssue logisticsIssue = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Error,
+                Code = "logistics.task.route_missing",
+                TargetIds = new List<string>
+                {
+                    "transport:core:000001",
+                    "building:core:source",
+                    "building:core:target"
+                }
+            };
+            DiagnosticIssue sharedIssue = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Warning,
+                Code = "resource.shared_capacity.exceeded"
+            };
+
+            IReadOnlyList<DiagnosticIssue> targetIssues = StateDiagnostics.GetIssuesForTarget(
+                new[] { farmIssue, logisticsIssue, sharedIssue },
+                "building:core:target");
+
+            AssertEqual(1, targetIssues.Count,
+                "Target filtering must only return diagnostics with an explicit matching target id.");
+            AssertEqual("logistics.task.route_missing", targetIssues.Single().Code,
+                "Target filtering must not infer related diagnostics without TargetIds.");
         }
 
         private static void StateDiagnosticsDetectsDuplicateBuildingLayers()
