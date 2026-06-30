@@ -28,6 +28,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("StateDiagnostics reports resource storage targets", StateDiagnosticsReportsResourceStorageTargets);
             Run("StateDiagnostics compares issue deltas", StateDiagnosticsComparesIssueDeltas);
             Run("StateDiagnostics filters issues by target", StateDiagnosticsFiltersIssuesByTarget);
+            Run("StateDiagnostics selects highest priority issue", StateDiagnosticsSelectsHighestPriorityIssue);
             Run("StateDiagnostics detects duplicate building layers", StateDiagnosticsDetectsDuplicateBuildingLayers);
             Run("StateDiagnostics handles empty state without exception", StateDiagnosticsHandlesEmptyState);
             Run("StateDiagnostics reports local inventory target", StateDiagnosticsReportsLocalInventoryTarget);
@@ -490,6 +491,43 @@ namespace WenMingBlocks.Runtime.Tests
                 "Target filtering must only return diagnostics with an explicit matching target id.");
             AssertEqual("logistics.task.route_missing", targetIssues.Single().Code,
                 "Target filtering must not infer related diagnostics without TargetIds.");
+        }
+
+        private static void StateDiagnosticsSelectsHighestPriorityIssue()
+        {
+            DiagnosticIssue firstWithoutPriority = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Info,
+                Code = "first.without_priority"
+            };
+            DiagnosticIssue secondWithoutPriority = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Error,
+                Code = "second.without_priority"
+            };
+
+            DiagnosticIssue fallback = StateDiagnostics.GetHighestPriorityIssue(
+                new[] { firstWithoutPriority, secondWithoutPriority });
+            AssertEqual("first.without_priority", fallback.Code,
+                "Priority selection must preserve input order when no issue exposes Priority.");
+
+            DiagnosticIssue lowerPriority = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Error,
+                Code = "lower.priority",
+                Priority = 20
+            };
+            DiagnosticIssue higherPriority = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Info,
+                Code = "higher.priority",
+                Priority = 90
+            };
+
+            DiagnosticIssue selected = StateDiagnostics.GetHighestPriorityIssue(
+                new[] { lowerPriority, higherPriority, firstWithoutPriority });
+            AssertEqual("higher.priority", selected.Code,
+                "Priority selection must use Runtime-provided Priority before severity or input order.");
         }
 
         private static void StateDiagnosticsDetectsDuplicateBuildingLayers()

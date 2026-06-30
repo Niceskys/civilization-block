@@ -154,6 +154,36 @@ namespace WenMingBlocks.Runtime.Authority
                 .ToList();
         }
 
+        public static DiagnosticIssue GetHighestPriorityIssue(IEnumerable<DiagnosticIssue> issues)
+        {
+            if (issues == null)
+            {
+                throw new ArgumentNullException(nameof(issues));
+            }
+
+            List<DiagnosticIssue> candidates = issues.Where(issue => issue != null).ToList();
+            if (candidates.Count == 0)
+            {
+                return null;
+            }
+
+            if (!candidates.Any(issue => issue.Priority.HasValue))
+            {
+                return candidates[0];
+            }
+
+            return candidates
+                .Select((issue, index) => new { Issue = issue, Index = index })
+                .OrderByDescending(item => item.Issue.Priority ?? int.MinValue)
+                .ThenByDescending(item => GetSeverityRank(item.Issue.Severity))
+                .ThenBy(item => item.Issue.SourceSystem ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => item.Issue.Code ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => string.Join(",", GetOrderedTargetIds(item.Issue)), StringComparer.Ordinal)
+                .ThenBy(item => item.Index)
+                .First()
+                .Issue;
+        }
+
         private static void CheckSaveMetadata(GameState state, List<DiagnosticIssue> issues)
         {
             if (string.IsNullOrWhiteSpace(state.SaveVersion))
@@ -1337,18 +1367,36 @@ namespace WenMingBlocks.Runtime.Authority
                 throw new ArgumentException("Diagnostic issue cannot be null.", nameof(issue));
             }
 
-            IEnumerable<string> targetIds = issue.TargetIds == null
+            return string.Join("|",
+                issue.Severity.ToString(),
+                issue.Code ?? string.Empty,
+                issue.SourceSystem ?? string.Empty,
+                string.Join(",", GetOrderedTargetIds(issue)));
+        }
+
+        private static IEnumerable<string> GetOrderedTargetIds(DiagnosticIssue issue)
+        {
+            return issue.TargetIds == null
                 ? Enumerable.Empty<string>()
                 : issue.TargetIds
                     .Where(id => !string.IsNullOrWhiteSpace(id))
                     .Distinct(StringComparer.Ordinal)
                     .OrderBy(id => id, StringComparer.Ordinal);
+        }
 
-            return string.Join("|",
-                issue.Severity.ToString(),
-                issue.Code ?? string.Empty,
-                issue.SourceSystem ?? string.Empty,
-                string.Join(",", targetIds));
+        private static int GetSeverityRank(DiagnosticSeverity severity)
+        {
+            switch (severity)
+            {
+                case DiagnosticSeverity.Error:
+                    return 3;
+                case DiagnosticSeverity.Warning:
+                    return 2;
+                case DiagnosticSeverity.Info:
+                    return 1;
+                default:
+                    return 0;
+            }
         }
 
         private static string ToHex(byte[] bytes)
