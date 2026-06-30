@@ -26,6 +26,7 @@ namespace WenMingBlocks.Runtime.Tests
             Run("Remote session rejects incompatible handshake", RemoteSessionRejectsIncompatibleHandshake);
             Run("StateDiagnostics reports negative resources", StateDiagnosticsReportsNegativeResources);
             Run("StateDiagnostics reports resource storage targets", StateDiagnosticsReportsResourceStorageTargets);
+            Run("StateDiagnostics compares issue deltas", StateDiagnosticsComparesIssueDeltas);
             Run("StateDiagnostics detects duplicate building layers", StateDiagnosticsDetectsDuplicateBuildingLayers);
             Run("StateDiagnostics handles empty state without exception", StateDiagnosticsHandlesEmptyState);
             Run("StateDiagnostics reports local inventory target", StateDiagnosticsReportsLocalInventoryTarget);
@@ -403,6 +404,56 @@ namespace WenMingBlocks.Runtime.Tests
                 "Shared-capacity diagnostic must expose its source system.");
             AssertEqual(beforeHash, afterHash,
                 "Diagnostic display metadata must not mutate authoritative state hash.");
+        }
+
+        private static void StateDiagnosticsComparesIssueDeltas()
+        {
+            DiagnosticIssue persistentBefore = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Info,
+                Code = "continuous_production.output_pending",
+                SourceSystem = "continuous_production",
+                TargetIds = new List<string> { "building:core:target", CoreResourceIds.Wood },
+                Message = "before"
+            };
+            DiagnosticIssue resolvedBefore = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Info,
+                Code = "continuous_production.farm.no_light",
+                SourceSystem = "continuous_production",
+                TargetIds = new List<string> { "building:core:farm" },
+                Message = "resolved"
+            };
+            DiagnosticIssue persistentAfter = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Info,
+                Code = "continuous_production.output_pending",
+                SourceSystem = "continuous_production",
+                TargetIds = new List<string> { CoreResourceIds.Wood, "building:core:target" },
+                Message = "after"
+            };
+            DiagnosticIssue appearedAfter = new DiagnosticIssue
+            {
+                Severity = DiagnosticSeverity.Warning,
+                Code = "resource.shared_capacity.exceeded",
+                SourceSystem = "resource_storage",
+                Message = "appeared"
+            };
+
+            DiagnosticDelta delta = StateDiagnostics.CompareIssues(
+                new[] { persistentBefore, resolvedBefore },
+                new[] { persistentAfter, appearedAfter });
+
+            AssertEqual(1, delta.Persisting.Count,
+                "Diagnostic delta must preserve issues with matching code, source, severity, and targets.");
+            AssertEqual(1, delta.Resolved.Count,
+                "Diagnostic delta must report issues missing from the current list as resolved.");
+            AssertEqual(1, delta.Appeared.Count,
+                "Diagnostic delta must report new issues as appeared.");
+            AssertEqual("continuous_production.farm.no_light", delta.Resolved.Single().Code,
+                "Resolved diagnostics should retain the previous issue details.");
+            AssertEqual("resource.shared_capacity.exceeded", delta.Appeared.Single().Code,
+                "Appeared diagnostics should retain the current issue details.");
         }
 
         private static void StateDiagnosticsDetectsDuplicateBuildingLayers()

@@ -24,6 +24,13 @@ namespace WenMingBlocks.Runtime.Authority
         public string SourceSystem { get; set; } = string.Empty;
     }
 
+    public sealed class DiagnosticDelta
+    {
+        public List<DiagnosticIssue> Appeared { get; set; } = new List<DiagnosticIssue>();
+        public List<DiagnosticIssue> Resolved { get; set; } = new List<DiagnosticIssue>();
+        public List<DiagnosticIssue> Persisting { get; set; } = new List<DiagnosticIssue>();
+    }
+
     public static class StateDiagnostics
     {
         public static string CalculateStateHash(GameState state, JsonSerializerOptions jsonOptions = null)
@@ -71,6 +78,59 @@ namespace WenMingBlocks.Runtime.Authority
             CheckLogistics(state, issues);
             CheckCommands(state, issues);
             return issues;
+        }
+
+        public static DiagnosticDelta CompareIssues(
+            IEnumerable<DiagnosticIssue> previousIssues,
+            IEnumerable<DiagnosticIssue> currentIssues)
+        {
+            if (previousIssues == null)
+            {
+                throw new ArgumentNullException(nameof(previousIssues));
+            }
+
+            if (currentIssues == null)
+            {
+                throw new ArgumentNullException(nameof(currentIssues));
+            }
+
+            Dictionary<string, Queue<DiagnosticIssue>> previousByKey =
+                new Dictionary<string, Queue<DiagnosticIssue>>(StringComparer.Ordinal);
+            foreach (DiagnosticIssue issue in previousIssues)
+            {
+                string key = GetIssueIdentityKey(issue);
+                if (!previousByKey.TryGetValue(key, out Queue<DiagnosticIssue> queue))
+                {
+                    queue = new Queue<DiagnosticIssue>();
+                    previousByKey.Add(key, queue);
+                }
+
+                queue.Enqueue(issue);
+            }
+
+            DiagnosticDelta delta = new DiagnosticDelta();
+            foreach (DiagnosticIssue issue in currentIssues)
+            {
+                string key = GetIssueIdentityKey(issue);
+                if (previousByKey.TryGetValue(key, out Queue<DiagnosticIssue> queue) && queue.Count > 0)
+                {
+                    queue.Dequeue();
+                    delta.Persisting.Add(issue);
+                    continue;
+                }
+
+                delta.Appeared.Add(issue);
+            }
+
+            foreach (Queue<DiagnosticIssue> queue in previousByKey.Values)
+            {
+                while (queue.Count > 0)
+                {
+                    delta.Resolved.Add(queue.Dequeue());
+                }
+            }
+
+            return delta;
         }
 
         private static void CheckSaveMetadata(GameState state, List<DiagnosticIssue> issues)
@@ -1247,6 +1307,27 @@ namespace WenMingBlocks.Runtime.Authority
                 Priority = priority,
                 SourceSystem = sourceSystem ?? string.Empty
             };
+        }
+
+        private static string GetIssueIdentityKey(DiagnosticIssue issue)
+        {
+            if (issue == null)
+            {
+                throw new ArgumentException("Diagnostic issue cannot be null.", nameof(issue));
+            }
+
+            IEnumerable<string> targetIds = issue.TargetIds == null
+                ? Enumerable.Empty<string>()
+                : issue.TargetIds
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(id => id, StringComparer.Ordinal);
+
+            return string.Join("|",
+                issue.Severity.ToString(),
+                issue.Code ?? string.Empty,
+                issue.SourceSystem ?? string.Empty,
+                string.Join(",", targetIds));
         }
 
         private static string ToHex(byte[] bytes)
