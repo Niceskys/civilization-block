@@ -42,6 +42,102 @@ UI 或 View 层禁止：
 
 `CoreContentDefinitionModule`正式注册4.1的16种资源、管道，以及首批逐栋迁移的房屋、农田、水井、树场。四种初始建筑使用已裁决的标准`1x1x1`占地、派生重量、20单位本地缓存及6.1施工/结构数值；树场应急炭化是首个正式核心配方。农田、水井、树场基础产出由独立`ContinuousProductionSystem`结算，不与手动批次混用。其余13类普通建筑仍需在Phase E逐栋确认后接入。
 
+## Runtime 统一权威边界映射
+
+本节把 `00.5 Runtime架构蓝图_v1.md` 的 `Runtime 统一权威边界` 映射到当前 Runtime 文档中的既有文件、类和职责。本节只做映射说明，不新增 Runtime 系统，不修改代码，不修改存档结构，不修改 StateHash 算法，不修改协议版本。
+
+### Definition 映射
+
+Definition 映射到 `DefinitionRegistry`、核心 Definition 模块、资源定义、建筑定义、配方定义、管道定义和后续 `IDefinitionModule` 注册边界。
+
+Definition 进入 Runtime 后只读。`DefinitionRegistry` 注册时深复制可变定义，拒绝重复 ID，并在组成模拟时严格校验引用后封存。
+
+Definition 不保存当前资源数量、建筑实例、NPC 状态、生产进度、物流任务或 UI 状态。
+
+UI / View / 模组外部引用不得修改 Definition 来影响当前玩法结果；需要新增内容时必须通过受控 Definition 注册流程，不得静默覆盖既有定义。
+
+### State 映射
+
+State 映射到 `GameState` 及其子状态。
+
+权威 State 包括资源、建筑、施工、NPC、岗位、批次生产、持续生产、物流、连接设施、结构状态、时间、难度、诊断所需状态、远端同步所需游标与快照一致性字段等已接入内容。
+
+State 只能由 `Simulation` 通过 Command 执行或 Tick 推进修改。
+
+UI、View、Diagnostics、日志、传输层和表现层不得直接修改权威 State；Diagnostics 只能读取 Runtime 结果并给出诊断，不得成为规则来源。
+
+### View 映射
+
+View 映射到只读投影、`EventStream`、`StateDiagnostics`、UI 消费端和远端隔离快照。
+
+UI / View 可以读取 Runtime 输出、订阅事件、读取诊断结果，也可以构造 `CommandEnvelope` 并提交给命令入口。
+
+UI 不得复制生产、库存、物流、承重、光照、燃料或消耗算法；这些结算必须由 Runtime 权威系统完成。
+
+UI 不得维护第二套诊断优先级，不得解析自然语言 Message 作为规则来源；冲突类型、拒绝原因、诊断状态和同步结果应来自机器可读状态或事件字段。
+
+### Command 映射
+
+Command 映射到 `CommandBus`、`SimulationProtocol`、`CommandEnvelope` 与 `Simulation.ExecuteCommand`。
+
+玩家操作和外部状态修改请求必须通过 Command，包括建造、取消、拆除、岗位分配、生产切换、物流、管道、时间控制以及未来联机输入。
+
+Command 必须校验、原子执行，并返回结果与事件。失败 Command 不得留下部分权威 State 修改。
+
+不得为某个系统建立第二套命令入口，不得绕过 `CommandBus` 或 `Simulation.ExecuteCommand` 直接调用系统内部方法修改 `GameState`。
+
+### Event 映射
+
+Event 映射到 `EventStream` 和 `GameState.Events`。
+
+Event 是事实输出，不是修改入口。UI、日志、诊断、同步和测试可以读取 Event，但不得通过 Event 订阅直接修改权威 State。
+
+如果 Event 触发后续玩法变化，必须回到 Command，或由 Simulation 内部明确规则在 Tick / Execute 流程中处理。
+
+`CommandResult.Events`只包含该命令产生的事件；积压事件通过远端 `EventStream` 同步，不能混入命令结果。
+
+### Simulation 映射
+
+Simulation 映射到 `Simulation`、`ISimulationSystem` 和 `RuntimeComposition`。
+
+`RuntimeComposition.CreateSimulation` 是 Local / Server 共同装配入口。单机和服务器必须复用同一个 `CreateSimulation`，不能拥有两套玩法实现。
+
+系统只能在 Command 执行或 Tick 中修改 `GameState`。新增玩法系统时实现 `ISimulationSystem`，并在系统内注册自己的 `ICommandHandler`。
+
+不得创建第二套 Runtime 入口、第二套资源库存、第二套事件系统，或与 `Simulation` / `RuntimeComposition` 平行的总管理器。
+
+### Save 映射
+
+Save 映射到 `SaveSystem` 和 `GameState.SaveVersion`。
+
+Save 只保存权威 State，不保存纯 UI 状态。资源、建筑、施工、岗位、生产、物流、连接设施、垃圾、肥料、太阳灯运行时状态、时间、难度和必要同步字段等影响玩法结果的内容应纳入权威存档边界。
+
+面板位置、hover、动画、音效、摄像机、纯表现状态和不影响玩法结果的本地偏好不得混入权威存档 State。
+
+新增 State 字段必须评估 `SaveVersion`、迁移规则和兼容测试。本次只补强映射边界，不修改存档结构。
+
+### StateHash 映射
+
+StateHash 映射到当前 StateHash / 快照一致性检查机制。
+
+StateHash 只覆盖影响玩法结果的权威状态，包括资源、建筑、施工、岗位、生产、物流、连接设施、太阳灯燃料覆盖、时间、难度、结构状态和同步一致性所需字段。
+
+StateHash 不覆盖 UI 面板、hover、动画、音效、摄像机、粒子、纯表现状态或不影响玩法结果的本地偏好。
+
+本次只补强 StateHash 映射边界，不修改 StateHash 算法。
+
+### ServerAuthority 映射
+
+ServerAuthority 映射到 `LocalGameSession`、`ServerGameSession`、`RemoteGameSession`、`IGameSessionTransport`、`LoopbackGameSessionTransport` 和 snapshot sync。
+
+Local 模式中，本地 `Simulation` 是权威。
+
+Server 模式中，服务器 `Simulation` 是权威，负责校验授权、执行 Command、推进 Tick、持有权威 State，并输出 Event / Snapshot / StateHash。
+
+Remote 模式中，客户端只提交 Command、接收 Event / Snapshot / StateHash，不推进权威 Simulation，不直接写权威 State。
+
+单机与服务器必须共用 `Simulation / RuntimeComposition` 权威规则。不得创建第二套服务器专用资源库存、建筑系统、事件系统或总管理器。
+
 ## 会话权威边界
 
 | 模式 | 执行命令 | 推进模拟 | 持有权威状态 |
